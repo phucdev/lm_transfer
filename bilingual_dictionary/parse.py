@@ -1,8 +1,8 @@
+import argparse
+import regex as re
 from lxml import etree as ElementTree
 from tqdm.auto import tqdm
-import regex as re
 from pathlib import Path
-import argparse
 from contextlib import ExitStack
 
 
@@ -10,17 +10,31 @@ def parse_wiktionary_dump(dump_path, languages, out_directory):
     def tag(name):
         return "{http://www.mediawiki.org/xml/export-0.10/}" + name
 
-    heading_regex = re.Regex(r"^==([^=]+?)==$", re.MULTILINE)
-    subheading_regex = re.Regex(r"^===([^=]+?)===$", re.MULTILINE)
-    sub_subheading_regex = re.Regex(r"^====([^=]+?)====$", re.MULTILINE)
-    # {{trans-top}}: {{trans-top|hue as opposed to achromatic colors}}
-    # {{trans-top-also}}: {{trans-top-also|id=Q525|the star around which the Earth revolves|Sun}}
-    # {{trans-see}}: {{trans-see|id=Q525|Nahuatl language|Nahuatl}}
+    heading_regex = re.Regex(r"^==([^=]+?)==$", re.MULTILINE)   # ==English==
+    subheading_regex = re.Regex(r"^===([^=]+?)===$", re.MULTILINE)  # ===Noun===
+    sub_subheading_regex = re.Regex(r"^====([^=]+?)====$", re.MULTILINE)    # ====Translations====
+    # Translations example: color (Noun)
+    # {{trans-top|hue as opposed to achromatic colors}}
+    # * German: (die) {{tt+|de|Sonne|f}}
+    # * Vietnamese: {{tt+|vi|Mặt Trời}}
+    # {{trans-bottom}}
+    #
+    # Other top markers:
+    # {{trans-see|associative array}}
+    # {{trans-top-also|id=Q525|the star around which the Earth revolves|Sun}}
+    #
+    # The following regex ignores checktrans-top markers, matches trans-top, trans-top-also, trans-see markers,
+    # ignores sense ids, and extracts the first gloss <definition> and translations <translations>.
+    # https://en.wiktionary.org/wiki/Wiktionary:Translations
+    # https://en.wiktionary.org/wiki/Template:trans-top
     definition_regex = re.Regex(
-        r"(?<!{{checktrans-top}}\n){{(?P<info>trans-(?:top|top-also|see)[^}]*)}}\s*(?P<translations>.*?)(?={{trans-bottom|\Z)",
-        re.MULTILINE
+        r"(?<!{{checktrans-top}}\n){{trans-(?:top|top-also)\|?(?:id=[^|]*\|)?(?:[^|]*\|)?(?P<definition>[^}|]*)}}\s*(?P<translations>.*?)(?={{trans-bottom|\Z)",
+        re.DOTALL
     )
+    # TODO: we ignore trans-see for now, handling trans-see would require additional processing steps
+    #  involving a lookup of the associated word and its translations
     translation_regex = re.Regex(r"\*\s*(?P<language>[^:]+):\s*(?P<translation>.+)", re.MULTILINE)
+    # https://en.wiktionary.org/wiki/Template:tt
     translation_entry_regex = re.Regex(r"{{t{1,2}\+?\|(?P<lang_code>[^|]+?)\|(?P<translation>[^}|]+)")
 
     meta_pages = ["Wiktionary:", "Template:", "Appendix:", "User:", "Help:", "MediaWiki:", "Thesaurus:",
@@ -45,7 +59,6 @@ def parse_wiktionary_dump(dump_path, languages, out_directory):
             if any(meta_page in title for meta_page in meta_pages):
                 continue
             if "/translations" in title:
-                print("Found a translation subpage")
                 title = title.replace("/translations", "")
             text = node.find(tag("revision")).find(tag("text")).text
 
@@ -101,22 +114,10 @@ def parse_wiktionary_dump(dump_path, languages, out_directory):
                             break
                     translation_section = pos_section[trans_start:trans_end]
 
-                    definition_matches = list(re.finditer(definition_regex, translation_section, re.DOTALL))
+                    definition_matches = list(definition_regex.finditer(translation_section))
                     for sense in definition_matches:
                         sense_dict = sense.groupdict()
-                        info = sense_dict["info"].strip()
-                        # Examples:
-                        # trans-top|spectral composition of visible light
-                        # trans-top-also|id=Q525|the star around which the Earth revolves|Sun
-                        # trans-top
-                        # trans-see|id=Q525|Nahuatl language|Nahuatl
-                        info_list = info.split("|")
-                        definition = ""
-                        if len(info_list) > 1:
-                            for j in range(1, len(info_list)):
-                                if not info_list[j].startswith("id="):
-                                    definition = info_list[j]
-                                    break
+                        definition = sense_dict["definition"].strip()
                         translations = sense_dict["translations"].strip()
                         translation_matches = list(translation_regex.finditer(translations))
                         for match in translation_matches:
@@ -127,13 +128,18 @@ def parse_wiktionary_dump(dump_path, languages, out_directory):
                             trans_lang = match_dict["language"].strip()
                             if trans_lang.lower() not in languages:
                                 continue
-                            translations = translation_entry_regex.findall(match_dict["translation"])
-                            if translations:
-                                translations = [word.replace("[[", "").replace("]]", "") for word in translations]
-                                translation_entry = f"{title} {{{pos}}} ({definition})\t{', '.join(translations)}"
-                                bidict_files[trans_lang.lower()].write(translation_entry + "\n")
+                            translation_matches = list(translation_entry_regex.finditer(match_dict["translation"]))
+                            translation = []
+                            for translation_match in translation_matches:
+                                # lang_code = translation_match.group("lang_code")
+                                translation.append(
+                                    translation_match.group("translation").replace("[[", "").replace("]]", "")
+                                )
+                            translation_entry = f"{title} {{{pos}}} ({definition})\t{', '.join(translation)}"
+                            bidict_files[trans_lang.lower()].write(translation_entry + "\n")
             bar.update(1)
             node.clear()
+
 
 
 def main(args):

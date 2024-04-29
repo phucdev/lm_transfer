@@ -39,8 +39,6 @@ This will create:
 Issues:
 - The script does not handle `{{trans-see}}` translation markers that point to another page. This would require a 
   processing all pages once and creating a lookup table in order to resolve these references.
-- For the bilingual mapping we are currently only using the first translation. We should consider all translations,
-  without creating duplicates and filtering out archaic, non-relevant translations or old Vietnamese script (Chữ Nôm).
 
 #### Using AWK scripts from Matthias Buchmeier
 We can use scripts from Matthias Buchmeier to create a bilingual dictionary from the translations sections of 

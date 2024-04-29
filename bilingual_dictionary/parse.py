@@ -51,8 +51,12 @@ def parse_wiktionary_dump(dump_path, languages, out_directory):
     #  involving a lookup of the associated word and its translations and adjusting the regex to recognize trans-see
     translation_regex = re.Regex(r"\*\s*(?P<language>[^:]+):\s*(?P<translation>.+)", re.MULTILINE)
     # https://en.wiktionary.org/wiki/Template:tt
-    translation_entry_regex = re.Regex(r"{{t{1,2}\+?\|(?P<lang_code>[^|]+?)\|(?P<translation>[^}|]+)")
-
+    # Example: {{tt+|vi|tự điển}} ({{tt+|vi|字典}}) {{q|dated, character dictionary}}
+    translation_entry_regex = re.Regex(
+        r"{{t{1,2}\+?\|(?P<lang_code>[^|]+?)\|(?P<translation>[^}|]+?)(?:\|[^}]+?)?}}"  # Capture translation
+        r"(?: \(({{[^}]+}})\))?[^,]*?"  # Ignore group
+        r"(?: {{q\|(?P<qualifier>[^}]+?)}})?"  # Capture optional qualifier
+    )
     meta_pages = ["Wiktionary:", "Template:", "Appendix:", "User:", "Help:", "MediaWiki:", "Thesaurus:",
                   "Category:", "Thread:", "User talk:"]
     ignore_subheadings = ["Etymology", "Pronunciation", "Alternative forms", "See also", "Further reading",
@@ -178,25 +182,51 @@ def parse_wiktionary_dump(dump_path, languages, out_directory):
                                 gloss = sense_dict["gloss"].strip()
                                 translations = sense_dict["translations"].strip()
                                 translation_matches = list(translation_regex.finditer(translations))
-                                for match in translation_matches:
+                                for translation_match in translation_matches:
                                     # Examples:
                                     # '* German: {{tt+|de|Wörterbuch|n}}, {{tt+|de|Diktionär|n|m}} {{q|archaic}}'
                                     # '* Vietnamese: {{tt+|vi|từ điển}} ({{tt|vi|詞典}})'
-                                    match_dict = match.groupdict()
-                                    trans_lang = match_dict["language"].strip()
+                                    translation_match_dict = translation_match.groupdict()
+                                    trans_lang = translation_match_dict["language"].strip()
                                     if trans_lang.lower() not in languages:
                                         continue
-                                    translation_matches = list(
-                                        translation_entry_regex.finditer(match_dict["translation"])
+                                    translation_entry_matches = list(
+                                        translation_entry_regex.finditer(translation_match_dict["translation"])
                                     )
-                                    translation = []
-                                    for translation_match in translation_matches:
+                                    translation_options = []
+                                    for translation_entry_match in translation_entry_matches:
                                         # lang_code = translation_match.group("lang_code")
-                                        translation.append(
-                                            translation_match.group("translation").replace("[[", "").replace("]]", "")
-                                        )
-                                    translation_entry = f"{title} {{{pos}}} ({gloss})\t{', '.join(translation)}"
-                                    bidict_files[trans_lang.lower()].write(translation_entry + "\n")
+                                        qualifier = translation_entry_match.group("qualifier")
+                                        if qualifier and ("dated" in qualifier or "archaic" in qualifier):
+                                            continue
+                                        # Consider this:
+                                        # banana	(trái) chuối, (quả) chuối
+                                        # banana	(cây) chuối
+                                        # Either remove the parenthesis or remove the parenthesis and the word in it
+                                        # or even add all combinations, i.e. chuối, trái chuối, quả chuối, cây chuối
+                                        # Also check this: rain cats and dogs ('to rain very heavily')
+                                        # * Vietnamese: {{t|vi|([[trời]]) [[mưa]] [[xối xả]]}}
+                                        raw = translation_entry_match.group(
+                                            "translation"
+                                        ).replace("[[", "").replace("]]", "")
+                                        pattern = re.Regex(r"\((?P<optional>[^\)]+)\)\s*(?P<main>\w+)")
+                                        match = pattern.search(raw)
+                                        if match:
+                                            optional_word = match.group("optional")
+                                            main_translation = match.group("main")
+                                            translation_options.append(main_translation)
+                                            if optional_word:
+                                                combined_word = f"{optional_word} {main_translation}"
+                                                if combined_word not in translation_options:
+                                                    translation_options.append(combined_word)
+                                        elif raw not in translation_options:
+                                            translation_options.append(raw)
+                                    if len(translation_options) == 0:
+                                        logger.debug(f"No valid translation")
+                                    else:
+                                        translation_entry = (f"{title} {{{pos}}} ({gloss})\t"
+                                                             f"{', '.join(translation_options)}")
+                                        bidict_files[trans_lang.lower()].write(translation_entry + "\n")
                 progress.update(task, advance=1)
                 node.clear()
 
@@ -213,7 +243,7 @@ def sort_lines(file_path):
 
 
 def create_bilingual_mapping(file_path, out_file):
-    source_regex = re.Regex(r"^(?P<word>[^\s{]+) \{(?P<pos>[^}]+)\}(?: \((?P<gloss>.*)\))?$")
+    source_regex = re.Regex(r"^(?P<word>[^{]+) \{(?P<pos>[^}]+)\}(?: \((?P<gloss>.*)\))?$")
     mapping = {}
     with open(file_path, "r", encoding="utf8") as in_file, open(out_file, "w", encoding="utf8") as out_file:
         for line in track(in_file, description="Mapping..."):
@@ -234,15 +264,15 @@ def create_bilingual_mapping(file_path, out_file):
             # pos = match.group("pos")
             # gloss = match.group("gloss")
             translations = target.strip().split(", ")
-            translation = translations[0]   # we only take the first translation
-            if word not in mapping:
-                mapping[word] = [translation]
-            else:
-                if translation in mapping[word]:
-                    continue
+            for translation in translations:
+                if word not in mapping:
+                    mapping[word] = [translation]
                 else:
-                    mapping[word].append(translation)
-            out_file.write(f"{word}\t{translation}\n")
+                    if translation in mapping[word]:
+                        continue
+                    else:
+                        mapping[word].append(translation)
+                out_file.write(f"{word}\t{translation}\n")
 
 
 def main(args):

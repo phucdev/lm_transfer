@@ -11,8 +11,40 @@
   - The quality of the dictionary is not good. There is a lot of the old Vietnamese script (Chữ Nôm) and is not relevant to our use case.
 
 ### Creating a new bilingual dictionary
-In order to create a more up-to-date bilingual dictionary, we can use scripts from Matthias Buchmeier to create 
-a bilingual dictionary from the translations sections of the [wiktionary database dump](https://dumps.wikimedia.org/backup-index.html).
+There are multiple options to create a more up-to-date bilingual dictionary.
+
+#### Use parse script in this repository
+We can use the `parse.py` script in this repository to create a bilingual dictionary from the translations sections of
+the [wiktionary database dump](https://dumps.wikimedia.org/backup-index.html).
+This script is a rough python implementation of the AWK parsing script from Matthias Buchmeier.
+```bash
+python parse.py \
+  --out_dir bilingual_dictionary/Wiktionary \
+  --dump_path bilingual_dictionary/enwiktionary-20240420-pages-articles.xml \
+  --languages "german|vietnamese" \
+  --sort \
+  --create_mapping
+```
+
+This will create: 
+- a bilingual dictionary for each language, which looks like:
+  ```
+  accurate {adjective} (exact or careful conformity to truth)	genau, präzise, exakt
+  ```
+- a bilingual mapping for each language with no extra information, which looks like:
+  ```
+  accurate genau
+  ```
+  
+Issues:
+- The script does not handle `{{trans-see}}` translation markers that point to another page. This would require a 
+  processing all pages once and creating a lookup table in order to resolve these references.
+- For the bilingual mapping we are currently only using the first translation. We should consider all translations,
+  without creating duplicates and filtering out archaic, non-relevant translations or old Vietnamese script (Chữ Nôm).
+
+#### Using AWK scripts from Matthias Buchmeier
+We can use scripts from Matthias Buchmeier to create a bilingual dictionary from the translations sections of 
+the [wiktionary database dump](https://dumps.wikimedia.org/backup-index.html).
 You can find the scripts here:
 - https://en.wiktionary.org/wiki/User:Matthias_Buchmeier/trans-en-es.awk
 - https://en.wiktionary.org/wiki/User:Matthias_Buchmeier/ding2dictd
@@ -33,15 +65,17 @@ Steps:
     ```
 5. Check the resulting `en-vi.dict` file. This can serve as the base for our bilingual dictionary.
 
+#### Using the parse script from WECHSEL
 It is also possible to use the `parse.py` script from https://github.com/CPJKU/wechsel/blob/main/dicts/parse.py to 
 generate a bilingual dictionary from the translations sections of the wiktionary database dump.
-```bash
-python parse.py --out_dir data --dump_path enwiktionary-20240420-pages-articles.xml
-```
+
 However, the script does not work properly and the generated dictionary is low quality.
 For Vietnamese, the script uses the old Vietnamese script (Chữ Nôm), which is not used anymore and is not
 relevant to our use case. We are only interested in modern Vietnamese.
-There are some tricks in Matthias Buchmeier's script that are not present in the `parse.py` script.
 You would have to adjust the following things:
 - Check that there is an English section in the entry (there are non-English entries in the dump)
-- Check that there is a Vietnamese translation in the entry (sometimes there is a translation subpage)
+- Actually try to parse the Translations sections. The script currently tries to find a translation within any section,
+  using the following regex (excluding cases where the closest subheading is "Pronunciation" or "Etymology"):
+  ```python
+  translation_regex = re.Regex(r"(\[\[.+?\]\]\s?)+")
+  ```

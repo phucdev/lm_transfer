@@ -13,8 +13,20 @@ def parse_wiktionary_dump(dump_path, languages, out_directory):
     heading_regex = re.Regex(r"^==([^=]+?)==$", re.MULTILINE)
     subheading_regex = re.Regex(r"^===([^=]+?)===$", re.MULTILINE)
     sub_subheading_regex = re.Regex(r"^====([^=]+?)====$", re.MULTILINE)
+    # {{trans-top}}: {{trans-top|hue as opposed to achromatic colors}}
+    # {{trans-top-also}}: {{trans-top-also|id=Q525|the star around which the Earth revolves|Sun}}
+    # {{trans-see}}: {{trans-see|id=Q525|Nahuatl language|Nahuatl}}
+    definition_regex = re.Regex(
+        r"(?<!{{checktrans-top}}\n){{(?P<info>trans-(?:top|top-also|see)[^}]*)}}\s*(?P<translations>.*?)(?={{trans-bottom|\Z)",
+        re.MULTILINE
+    )
     translation_regex = re.Regex(r"\*\s*(?P<language>[^:]+):\s*(?P<translation>.+)", re.MULTILINE)
-    translation_entry_regex = re.Regex(r"{{tt\+?\|[^|]+?\|([^}|]+)")
+    translation_entry_regex = re.Regex(r"{{t{1,2}\+?\|(?P<lang_code>[^|]+?)\|(?P<translation>[^}|]+)")
+
+    meta_pages = ["Wiktionary:", "Template:", "Appendix:", "User:", "Help:", "MediaWiki:", "Thesaurus:",
+                  "Category:", "Thread:", "User talk:"]
+    ignore_subheadings = ["Etymology", "Pronunciation", "Alternative forms", "See also", "Further reading",
+                          "References", "Anagrams"]
 
     with ExitStack() as stack:
         bidict_files = {
@@ -29,8 +41,7 @@ def parse_wiktionary_dump(dump_path, languages, out_directory):
 
             title = node.find(tag("title")).text
             # skip meta pages
-            meta_pages = ["Wiktionary:", "Template:", "Appendix:", "User:", "Help:", "MediaWiki:", "Thesaurus:",
-                          "Category:", "Thread:", "User talk:"]
+
             if any(meta_page in title for meta_page in meta_pages):
                 continue
             if "/translations" in title:
@@ -61,10 +72,10 @@ def parse_wiktionary_dump(dump_path, languages, out_directory):
             else:
                 english_section = text[start:end]
                 subheadings = list(subheading_regex.finditer(english_section))
-                # Etymology, Pronunciation, followed by parts of speech, e.g. Noun, Verb, etc.
                 # Within each part of speech subsection, there may be a translations sub-subsection
                 for i, subheading in enumerate(subheadings):
-                    if "Etymology" in subheading.group(1) or "Pronunciation" in subheading.group(1):
+                    if subheading.group(1) in ignore_subheadings:
+                        # Skip subheadings that we don't care about, e.g. "Etymology", "Pronunciation", etc.
                         continue
 
                     pos_start = subheading.span()[1]
@@ -79,6 +90,7 @@ def parse_wiktionary_dump(dump_path, languages, out_directory):
                     trans_start = -1
                     trans_end = -1
                     for j, sub_subheading in enumerate(sub_subheadings):
+                        # Find the translations sub-subsection
                         if "translations" == sub_subheading.group(1).strip().lower():
                             trans_start = sub_subheading.span()[1]
                             trans_end = (
@@ -88,25 +100,38 @@ def parse_wiktionary_dump(dump_path, languages, out_directory):
                             )
                             break
                     translation_section = pos_section[trans_start:trans_end]
-                    definition_match = re.search(r"\{\{trans-top\|(.*?)\}\}", translation_section)
-                    if definition_match:
-                        definition = definition_match.group(1)
-                    else:
-                        definition = None
-                    translation_matches = list(translation_regex.finditer(translation_section))
-                    for match in translation_matches:
+
+                    definition_matches = list(re.finditer(definition_regex, translation_section, re.DOTALL))
+                    for sense in definition_matches:
+                        sense_dict = sense.groupdict()
+                        info = sense_dict["info"].strip()
                         # Examples:
-                        # '* German: {{tt+|de|Wörterbuch|n}}, {{tt+|de|Diktionär|n|m}} {{q|archaic}}'
-                        # '* Vietnamese: {{tt+|vi|từ điển}} ({{tt|vi|詞典}})'
-                        match_dict = match.groupdict()
-                        trans_lang = match_dict["language"].strip()
-                        if trans_lang.lower() not in languages:
-                            continue
-                        translations = translation_entry_regex.findall(match_dict["translation"])
-                        if translations:
-                            translations = [word.replace("[[", "").replace("]]", "") for word in translations]
-                            translation_entry = f"{title} {{{pos}}} ({definition})\t{', '.join(translations)}"
-                            bidict_files[trans_lang.lower()].write(translation_entry + "\n")
+                        # trans-top|spectral composition of visible light
+                        # trans-top-also|id=Q525|the star around which the Earth revolves|Sun
+                        # trans-top
+                        # trans-see|id=Q525|Nahuatl language|Nahuatl
+                        info_list = info.split("|")
+                        definition = ""
+                        if len(info_list) > 1:
+                            for j in range(1, len(info_list)):
+                                if not info_list[j].startswith("id="):
+                                    definition = info_list[j]
+                                    break
+                        translations = sense_dict["translations"].strip()
+                        translation_matches = list(translation_regex.finditer(translations))
+                        for match in translation_matches:
+                            # Examples:
+                            # '* German: {{tt+|de|Wörterbuch|n}}, {{tt+|de|Diktionär|n|m}} {{q|archaic}}'
+                            # '* Vietnamese: {{tt+|vi|từ điển}} ({{tt|vi|詞典}})'
+                            match_dict = match.groupdict()
+                            trans_lang = match_dict["language"].strip()
+                            if trans_lang.lower() not in languages:
+                                continue
+                            translations = translation_entry_regex.findall(match_dict["translation"])
+                            if translations:
+                                translations = [word.replace("[[", "").replace("]]", "") for word in translations]
+                                translation_entry = f"{title} {{{pos}}} ({definition})\t{', '.join(translations)}"
+                                bidict_files[trans_lang.lower()].write(translation_entry + "\n")
             bar.update(1)
             node.clear()
 

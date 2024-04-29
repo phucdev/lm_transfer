@@ -54,15 +54,18 @@ def parse_wiktionary_dump(dump_path, languages, out_directory):
                 continue
 
             title = node.find(tag("title")).text
+            if title is None:
+                continue
             # skip meta pages
-
             if any(meta_page in title for meta_page in meta_pages):
+                node.clear()
                 continue
             if "/translations" in title:
                 title = title.replace("/translations", "")
             text = node.find(tag("revision")).find(tag("text")).text
 
             if text is None:
+                node.clear()
                 continue
             language_headings = list(heading_regex.finditer(text))
 
@@ -81,6 +84,7 @@ def parse_wiktionary_dump(dump_path, languages, out_directory):
                     break
 
             if start == -1 or end == -1:
+                node.clear()
                 continue
             else:
                 english_section = text[start:end]
@@ -139,7 +143,6 @@ def parse_wiktionary_dump(dump_path, languages, out_directory):
                             bidict_files[trans_lang.lower()].write(translation_entry + "\n")
             bar.update(1)
             node.clear()
-
 
 
 def main(args):

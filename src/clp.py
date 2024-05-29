@@ -1,11 +1,13 @@
 """
 Adapted from https://github.com/malteos/clp-transfer/blob/main/clp.py
 # Efficient Language Model Training through Cross-Lingual and Progressive Transfer Learning
-
-- overlapping token in both source vocab + target vocab
-- trained (small) model with target vocab: retrieve NNs for missing tokens
-- build target embeddings for missing tokens through weighted combinations of NNs of source embeddings
-
+@misc{Ostendorff2023clp,
+  doi = {10.48550/ARXIV.2301.09626},
+  author = {Ostendorff, Malte and Rehm, Georg},
+  title = {Efficient Language Model Training through Cross-Lingual and Progressive Transfer Learning},
+  publisher = {arXiv},
+  year = {2023}
+}
 """
 import sys
 import logging
@@ -84,7 +86,6 @@ def apply_clp(
     source_tokenizer = AutoTokenizer.from_pretrained(source_model_name_or_path)
     source_embeddings = source_model.get_input_embeddings().weight.detach().numpy()
 
-
     if not helper_tokenizer_name_or_path:
         helper_tokenizer_name_or_path = helper_model_name_or_path
 
@@ -147,9 +148,6 @@ def apply_clp(
         for t in overlapping_tokens:
             target_embeddings[helper_token_to_idx[t]] = source_embeddings[source_token_to_idx[t]]
 
-        # TODO possible modifications:
-        #  use method from https://github.com/wietsedv/gpt2-recycle to transform smaller token embeddings to larger ones
-        #  normalizations?
         if missing_tokens:
 
             helper_missing_tokens_vecs = helper_embeddings[[helper_token_to_idx[t] for t in missing_tokens_list], :]

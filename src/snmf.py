@@ -98,7 +98,7 @@ def simplex(d):
 
 class PyMFBase:
     """
-    PyMF Base Class. Does nothing useful apart from poviding some basic methods.
+    PyMF Base Class. Does nothing useful apart from providing some basic methods.
     """
     # some small value
 
@@ -166,14 +166,14 @@ class PyMFBase:
         return err
 
     def _init_w(self):
-        """ Initalize W to random values [0,1].
+        """ Initialize W to random values [0,1].
         """
         # add a small value, otherwise nmf and related methods get into trouble as
         # they have difficulties recovering from zero.
         self.W = np.random.random((self._data_dimension, self._num_bases)) + 10 ** -4
 
     def _init_h(self):
-        """ Initalize H to random values [0,1].
+        """ Initialize H to random values [0,1].
         """
         self.H = np.random.random((self._num_bases, self._num_samples)) + 10 ** -4
 
@@ -315,11 +315,13 @@ class SNMF(PyMFBase):
     """
 
     def _update_w(self):
+        # In Ding et al. (2008) this is F = XG(G^TG)^-1
         W1 = np.dot(self.data[:, :], self.H.T)
         W2 = np.dot(self.H, self.H.T)
         self.W = np.dot(W1, np.linalg.inv(W2))
 
     def _update_h(self):
+        # Corresponds to the update of G while fixing F in Ding et al. (2008)
         def separate_positive(m):
             return (np.abs(m) + m) / 2.0
 

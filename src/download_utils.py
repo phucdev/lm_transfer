@@ -1,3 +1,25 @@
+"""
+Code adapted from https://github.com/konstantinjdobler/focus/blob/main/src/deepfocus/download_utils.py
+From the paper:
+@inproceedings{dobler-de-melo-2023-focus,
+    title = "{FOCUS}: Effective Embedding Initialization for Monolingual Specialization of Multilingual Models",
+    author = "Dobler, Konstantin  and
+      de Melo, Gerard",
+    editor = "Bouamor, Houda  and
+      Pino, Juan  and
+      Bali, Kalika",
+    booktitle = "Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing",
+    month = dec,
+    year = "2023",
+    address = "Singapore",
+    publisher = "Association for Computational Linguistics",
+    url = "https://aclanthology.org/2023.emnlp-main.829",
+    doi = "10.18653/v1/2023.emnlp-main.829",
+    pages = "13440--13454",
+}
+"""
+
+
 # see https://stackoverflow.com/a/63831344
 
 import functools

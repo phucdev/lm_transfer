@@ -1,3 +1,14 @@
+"""
+Adapted from https://github.com/cisnlp/ofa/blob/main/ofa/ofa.py
+From the paper:
+@article{liu2023ofa,
+ title={OFA: A Framework of Initializing Unseen Subword Embeddings for Efficient Large-scale Multilingual Continued Pretraining}
+ author={Liu, Yihong and Lin, Peiqin and Wang, Mingyang and Sch{\"u}tze, Hinrich},
+ journal={arXiv preprint arXiv:2311.08849},
+ year={2023}
+}
+"""
+
 from utils import *
 import os
 import argparse

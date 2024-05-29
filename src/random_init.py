@@ -1,3 +1,14 @@
+"""
+Adapted from https://github.com/cisnlp/ofa/blob/main/ofa/random_init.py
+From the paper:
+@article{liu2023ofa,
+ title={OFA: A Framework of Initializing Unseen Subword Embeddings for Efficient Large-scale Multilingual Continued Pretraining}
+ author={Liu, Yihong and Lin, Peiqin and Wang, Mingyang and Sch{\"u}tze, Hinrich},
+ journal={arXiv preprint arXiv:2311.08849},
+ year={2023}
+}
+"""
+
 from utils import *
 from transformers import AutoModelForMaskedLM, AutoTokenizer
 
@@ -45,15 +56,20 @@ def run_random_init(source_model_name, source_tokenizer, target_tokenizer, sourc
     np.save(f"{model_path}/target_matrix.npy", final_target_matrix)
 
 
-source_model_name = 'roberta-base'
+def main():
+    source_model_name = 'roberta-base'
 
-# loading tokenizers and source-model embeddings
-source_tokenizer = AutoTokenizer.from_pretrained(source_model_name)  # source tok
-target_tokenizer = AutoTokenizer.from_pretrained('cis-lmu/glot500-base')  # target tok
+    # loading tokenizers and source-model embeddings
+    source_tokenizer = AutoTokenizer.from_pretrained(source_model_name)  # source tok
+    target_tokenizer = AutoTokenizer.from_pretrained('cis-lmu/glot500-base')  # target tok
 
-source_model = AutoModelForMaskedLM.from_pretrained(source_model_name)
+    source_model = AutoModelForMaskedLM.from_pretrained(source_model_name)
 
-source_embeddings = source_model.get_input_embeddings().weight.detach().numpy()
-assert len(source_tokenizer) == len(source_embeddings)
-run_random_init(source_model_name, source_tokenizer, target_tokenizer, source_embeddings)
-print('done!')
+    source_embeddings = source_model.get_input_embeddings().weight.detach().numpy()
+    assert len(source_tokenizer) == len(source_embeddings)
+    run_random_init(source_model_name, source_tokenizer, target_tokenizer, source_embeddings)
+    print('done!')
+
+
+if __name__ == '__main__':
+    main()

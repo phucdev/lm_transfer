@@ -1,3 +1,24 @@
+"""
+Code adapted from https://github.com/konstantinjdobler/focus/blob/main/src/deepfocus/focus.py
+From the paper:
+@inproceedings{dobler-de-melo-2023-focus,
+    title = "{FOCUS}: Effective Embedding Initialization for Monolingual Specialization of Multilingual Models",
+    author = "Dobler, Konstantin  and
+      de Melo, Gerard",
+    editor = "Bouamor, Houda  and
+      Pino, Juan  and
+      Bali, Kalika",
+    booktitle = "Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing",
+    month = dec,
+    year = "2023",
+    address = "Singapore",
+    publisher = "Association for Computational Linguistics",
+    url = "https://aclanthology.org/2023.emnlp-main.829",
+    doi = "10.18653/v1/2023.emnlp-main.829",
+    pages = "13440--13454",
+}
+"""
+
 from typing import Literal, Optional, Union
 
 import entmax
@@ -9,8 +30,8 @@ from torch import Tensor
 from tqdm.asyncio import tqdm
 from transformers import PreTrainedTokenizer
 
-from .fasttext_embs import load_target_token_embedding
-from .vocab_helper import NewToken, OverlappingToken, canonicalize_vocab, construct_vocab_view, is_numerical_symbol_etc
+from fasttext_embs import load_target_token_embedding
+from vocab_helper import NewToken, OverlappingToken, canonicalize_vocab, construct_vocab_view, is_numerical_symbol_etc
 
 
 logger = logging.getLogger(__name__)
@@ -130,7 +151,7 @@ def FOCUS(
         fasttext_model_epochs (int, optional): Number of epochs if training a custom fasttext model. Defaults to 3.
         fasttext_model_dim (int, optional): Dimension size if training a custom fasttext model. Defaults to 100.
         fasttext_model_min_count (int, optional): Minimum number of occurrences for a token to be included if training a custom fasttext model. Defaults to 10.
-        exact_match_all (bool, optional): Match all overlapping tokens if they are an exact match. Defaults to False.
+        exact_match_all (bool, optional): Match all overlapping tokens if they are an exact match. Defaults to True.
         match_symbols (bool, optional): Match overlapping symbolic tokens. Defaults to False.
         fuzzy_match_all (bool, optional): Match all overlapping tokens with fuzzy matching (whitespace and case). Defaults to False.
         extend_tokenizer (PreTrainedTokenizer | None, optional): If extending a tokenizer instead of vocabulary replacement, this should be the tokenizer that was used to extend the `source_tokenizer` (i.e. a target language specific tokenizer). The `target_tokenizer` should be the *extended* tokenizer. Defaults to None.

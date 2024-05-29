@@ -1,8 +1,30 @@
+"""
+Code adapted from https://github.com/konstantinjdobler/focus/blob/main/src/deepfocus/fasttext_embs.py
+From the paper: 
+@inproceedings{dobler-de-melo-2023-focus,
+    title = "{FOCUS}: Effective Embedding Initialization for Monolingual Specialization of Multilingual Models",
+    author = "Dobler, Konstantin  and
+      de Melo, Gerard",
+    editor = "Bouamor, Houda  and
+      Pino, Juan  and
+      Bali, Kalika",
+    booktitle = "Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing",
+    month = dec,
+    year = "2023",
+    address = "Singapore",
+    publisher = "Association for Computational Linguistics",
+    url = "https://aclanthology.org/2023.emnlp-main.829",
+    doi = "10.18653/v1/2023.emnlp-main.829",
+    pages = "13440--13454",
+}
+"""
+
 import multiprocessing
 import os
 import tempfile
 import logging
 from pathlib import Path
+from typing import Optional
 
 import fasttext
 from datasets.fingerprint import Hasher
@@ -10,7 +32,7 @@ from datasets.load import load_dataset
 from tqdm import tqdm
 from transformers import PreTrainedTokenizer
 
-from .download_utils import download, gunzip
+from download_utils import download, gunzip
 
 CACHE_DIR = (Path(os.getenv("XDG_CACHE_HOME", "~/.cache")) / "deepfocus").expanduser().resolve()
 
@@ -54,15 +76,17 @@ def train_fasttext(
     cache_file = CACHE_DIR / "data" / f"{text_path_sanitized}_tokenized_{target_tokenizer_hash}{data_file_suffix}"
 
     if cache_file.exists():
-        logger.success(f"Tokenized text for {text_path} found at {cache_file}...")
+        logger.info(f"Tokenized text for {text_path} found at {cache_file}...")
     else:
         if cache_tokenized_text:
             logger.info(f"Tokenizing text in {text_path} and caching results in {cache_file}...")
 
         if text_path.endswith(".txt"):
             dataset = load_dataset("text", data_files=text_path, split="train")
-        if text_path.endswith(".json") or text_path.endswith(".jsonl"):
+        elif text_path.endswith(".json") or text_path.endswith(".jsonl"):
             dataset = load_dataset("json", data_files=text_path, split="train")
+        else:
+            raise ValueError(f"Unsupported file format: {text_path}")
         dataset = dataset.map(
             lambda sample: {"text": " ".join([token for token in target_tokenizer.tokenize(sample["text"])])},
             num_proc=processes,
@@ -72,7 +96,7 @@ def train_fasttext(
 
             with cache_file.open("w+", encoding="utf-8") as f:
                 f.writelines((text + "\n" for text in tqdm(dataset["text"], desc="Writing data...")))
-            logger.success(f"Tokenized target language training data for fasttext written to {cache_file}...")
+            logger.info(f"Tokenized target language training data for fasttext written to {cache_file}...")
         else:
             temp_file = tempfile.NamedTemporaryFile("w+", encoding="utf-8")
             for text in dataset["text"]:
@@ -127,9 +151,9 @@ def download_pretrained_fasttext_word_embs(identifier: str, verbose=True):
 
 def load_target_token_embedding(
     target_tokenizer: PreTrainedTokenizer,
-    target_training_data_path: str | None = None,
-    fasttext_model_path: str | None = None,
-    language_identifier: str | None = None,
+    target_training_data_path: Optional[str] = None,
+    fasttext_model_path: Optional[str] = None,
+    language_identifier: Optional[str] = None,
     epochs: int = None,
     dim: int = None,
     min_count: int = None,
@@ -171,7 +195,7 @@ def load_target_token_embedding(
 
 
 def train_or_load_fasttext_model(
-    text_path: str | None,
+    text_path: Optional[str],
     target_tokenizer: PreTrainedTokenizer,
     epochs,
     dim,
@@ -201,10 +225,10 @@ def train_or_load_fasttext_model(
             processes=processes,
             min_count=min_count,
         )
-        logger.success(f"Saving fasttext model to {model_cache_path}.")
+        logger.info(f"Saving fasttext model to {model_cache_path}.")
         os.makedirs(str(model_cache_path.parent), exist_ok=True)
         fasttext_model.save_model(str(model_cache_path))
     else:
-        logger.success(f"Loading pretrained fasttext model from {model_cache_path}.")
+        logger.info(f"Loading pretrained fasttext model from {model_cache_path}.")
         fasttext_model = fasttext.load_model(str(model_cache_path))
     return fasttext_model

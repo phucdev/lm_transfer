@@ -17,7 +17,7 @@ import multiprocessing
 from scipy.linalg import orthogonal_procrustes
 from gensim.models import Word2Vec
 
-from wechsel.download_utils import download, gunzip
+from download_utils import download, gunzip
 
 __version__ = "0.0.4"
 

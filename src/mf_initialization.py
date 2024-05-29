@@ -79,12 +79,14 @@ def apply_clp(
 
     # Factorize source embeddings into lower dimensional word embeddings F with token specific information and
     # orthogonal up-projection matrix G that encodes general linguistic information and is shared by all tokens
+    logger.info(f'{source_embeddings.shape=}')
     if mf_method == "svd":
         # SVD method as in OFA by Liu et al. (2024)
         # f is described as lower embeddings or coordinates
         # g is described as primitive embeddings
         logger.info(f"Performing SVD factorization as in OFA by Liu et al. (2024)")
         g, f = perform_factorize(source_embeddings, keep_dim=keep_dim)
+        logger.info(f'{f.shape=}; {g.shape=}')
     elif mf_method == "snmf":
         # Semi Non-Negative Matrix Factorization similar to Pfeiffer et al. (2021)
         logger.info(f"Performing SNMF factorization similar to Pfeiffer et al. (2021)")
@@ -92,6 +94,7 @@ def apply_clp(
         snmf_mdl.factorize()
         f = snmf_mdl.W
         g = snmf_mdl.H
+        logger.info(f'{f.shape=}; {g.shape=}')
     else:
         # No factorization
         logger.info(f"No matrix factorization")
@@ -113,23 +116,22 @@ def apply_clp(
     helper_embeddings = helper_model.get_input_embeddings().weight.detach().numpy()
 
     target_tokens = set(helper_tokenizer.get_vocab().keys())
-    source_tokens = set(source_tokenizer.get_vocab().keys())
+    # source_tokens = set(source_tokenizer.get_vocab().keys())
 
     # Overlapping tokens
-    if exact_match_all:
-        overlapping_tokens = target_tokens & source_tokens
-        missing_tokens = target_tokens - source_tokens
-        missing_tokens_list = list(missing_tokens)
-        overlapping_tokens_list = list(overlapping_tokens)
-    else:
-        overlapping_tokens, missing_tokens = get_overlapping_tokens(helper_tokenizer, source_tokenizer,
-                                                                    match_symbols=match_symbols,
-                                                                    exact_match_all=exact_match_all,
-                                                                    fuzzy_match_all=fuzzy_match_all)
-        # overlapping_tokens = sorted(overlapping_tokens.items(), key=lambda x: x[1].target.id)
-        # missing_tokens = sorted(missing_tokens.items(), key=lambda x: x[1].target.id)
-        missing_tokens_list = list(missing_tokens.keys())
-        overlapping_tokens_list = list(overlapping_tokens.keys())
+    logger.info(f'Matching for overlapping tokens: {match_symbols=}; {exact_match_all=}; {fuzzy_match_all=}')
+    # overlapping tokens keys are the native form of the corresponding target token
+    overlapping_tokens, missing_tokens = get_overlapping_tokens(helper_tokenizer, source_tokenizer,
+                                                                match_symbols=match_symbols,
+                                                                exact_match_all=exact_match_all,
+                                                                fuzzy_match_all=fuzzy_match_all)
+    # overlapping_tokens = sorted(overlapping_tokens.items(), key=lambda x: x[1].target.id)
+    # missing_tokens = sorted(missing_tokens.items(), key=lambda x: x[1].target.id)
+    missing_tokens_list = list(missing_tokens.keys())
+    overlapping_tokens_list_source = []
+    overlapping_tokens_list_target = list(overlapping_tokens.keys())
+    for t, overlapping_token in overlapping_tokens.items():
+        overlapping_tokens_list_source.append(overlapping_token.source[0].native_form)
 
     logger.info(f'{len(overlapping_tokens)=}; {len(missing_tokens)=}')
 
@@ -140,7 +142,7 @@ def apply_clp(
     # target_token_to_idx = {t: i for t, i in target_tokenizer.get_vocab().items()}
     helper_token_to_idx = {t: i for t, i in helper_tokenizer.get_vocab().items()}
 
-    overlapping_tokens_idxs = [source_token_to_idx[t] for t in overlapping_tokens_list]
+    overlapping_tokens_idxs = [source_token_to_idx[t] for t in overlapping_tokens_list_source]
     # overlapping_token_vecs = source_embeddings[overlapping_tokens_idxs, :]
     overlapping_f = f[overlapping_tokens_idxs, :]
 
@@ -178,13 +180,13 @@ def apply_clp(
             )
         )
         # Set overlapping tokens only if we plan on using factorized embeddings as in Pfeiffer et al. (2021)
-        # for t in overlapping_tokens:
-        #     target_embeddings[helper_token_to_idx[t]] = f[source_token_to_idx[t]]
+        # for source_t, target_t in zip(overlapping_tokens_list_source, overlapping_tokens_list_target):
+        #   target_embeddings[helper_token_to_idx[target_t]] = source_embeddings[source_token_to_idx[source_t]]
 
         if missing_tokens:
             helper_missing_tokens_vecs = helper_embeddings[[helper_token_to_idx[t] for t in missing_tokens_list], :]
             helper_overlapping_token_vecs = helper_embeddings[
-                                            [helper_token_to_idx[t] for t in overlapping_tokens_list], :]
+                                            [helper_token_to_idx[t] for t in overlapping_tokens_list_target], :]
 
             # Similarities for missing tokens
             sims = cosine_similarity(helper_missing_tokens_vecs, helper_overlapping_token_vecs)
@@ -192,7 +194,7 @@ def apply_clp(
             # similar = 1 => high weight
             # dissimilar = 0 => low weight
 
-            for ti, t in enumerate(tqdm(missing_tokens_list)):  # 1:14hrs (12min with batch sim)
+            for ti, t in enumerate(tqdm(missing_tokens_list)):
                 # distances to overlapping tokens
                 token_sims = sims[ti]
                 norm_sims = token_sims / token_sims.sum()
@@ -206,8 +208,9 @@ def apply_clp(
 
     # Multiply target embeddings with g to get full-sized embedding matrix
     target_embeddings = np.dot(target_embeddings, g)
-    for t in overlapping_tokens:
-        target_embeddings[helper_token_to_idx[t]] = source_embeddings[source_token_to_idx[t]]
+    for source_t, target_t in zip(overlapping_tokens_list_source, overlapping_tokens_list_target):
+        target_embeddings[helper_token_to_idx[target_t]] = source_embeddings[source_token_to_idx[source_t]]
+    logger.info(f'{target_embeddings.shape=}')
 
     # Save target model
     target_model = source_model

@@ -55,7 +55,7 @@ def train_fasttext(
     """Utility function to train a fasttext model on tokenized text data.
     Args:
         text_path (str): Path to a file containing text. This file will be used to train the fasttext model.
-        target_tokenizer (PreTrainedTokenizer, optional): The tokenizer to to apply to the provided text file before training the fasttext model on the data.
+        target_tokenizer (PreTrainedTokenizer, optional): The tokenizer to apply to the provided text file before training the fasttext model on the data.
         epochs (int, optional): The number of training epochs for the fasttext model.
         dim (int, optional): The embedding dimension for the fasttext model.
         processes (int, optional): The number of processes to use for parallelization. Defaults to `multiprocessing.cpu_count()`.

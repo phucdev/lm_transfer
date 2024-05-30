@@ -19,3 +19,4 @@ gensim~=4.3.2
 nltk~=3.8.1
 numba~=0.59.1
 wandb~=0.17.0
+zstandard~=0.22.0

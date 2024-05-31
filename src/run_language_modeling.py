@@ -120,6 +120,13 @@ def parse_args():
         help="The number of steps between evaluations. Set to `epoch` to evaluate at the end of each epoch.",
     )
     parser.add_argument(
+        "--eval_iters",
+        type=int,
+        default=None,
+        help="The number of iterations to run evaluation for. Defaults to `None` which means that the whole dataset "
+             "will be used.",
+    )
+    parser.add_argument(
         "--preprocessed_dataset_path",
         type=str,
         default=None,
@@ -173,6 +180,9 @@ def parse_args():
         help="Initial learning rate (after the potential warmup period) to use.",
     )
     parser.add_argument("--weight_decay", type=float, default=0.0, help="Weight decay to use.")
+    parser.add_argument("--beta1", type=float, default=0.9, help="Adam beta1.")
+    parser.add_argument("--beta2", type=float, default=0.999, help="Adam beta2.")
+    parser.add_argument("--grad_clip", type=float, default=1.0, help="Gradient clipping.")
     parser.add_argument("--num_train_epochs", type=int, default=3, help="Total number of training epochs to perform.")
     parser.add_argument(
         "--max_train_steps",
@@ -708,7 +718,7 @@ def main():
             "weight_decay": 0.0,
         },
     ]
-    optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
+    optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate, betas=(args.beta1, args.beta2))
 
     # Note -> the training dataloader needs to be prepared before we grab his length below (cause its length will be
     # shorter in multiprocess)
@@ -828,7 +838,9 @@ def main():
                 if args.with_tracking:
                     train_step_loss = loss.detach().float()
                     total_loss += train_step_loss
+                    batch_loss += train_step_loss / accelerator.gradient_accumulation_steps
                 accelerator.backward(loss)
+                accelerator.clip_grad_norm_(model.parameters(), max_norm=args.grad_clip)
                 optimizer.step()
                 lr_scheduler.step()
                 optimizer.zero_grad()

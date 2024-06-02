@@ -46,12 +46,13 @@ def apply_clp(
         seed=42,
         override: bool = False,
         random_init: bool = False,
+        random_init_missing_tokens: bool = False,
         random_init_method: str = None,
         keep_dim: int = 100,
         mf_method: str = None,
         exact_match_all: bool = True,
         match_symbols: bool = False,
-        fuzzy_match_all: bool = False
+        fuzzy_match_all: bool = False,
 ):
     """
     All methods have the following steps in common:
@@ -118,37 +119,6 @@ def apply_clp(
     target_tokens = set(helper_tokenizer.get_vocab().keys())
     # source_tokens = set(source_tokenizer.get_vocab().keys())
 
-    # Overlapping tokens
-    logger.info(f'Matching for overlapping tokens: {match_symbols=}; {exact_match_all=}; {fuzzy_match_all=}')
-    # overlapping tokens keys are the native form of the corresponding target token
-    overlapping_tokens, missing_tokens = get_overlapping_tokens(helper_tokenizer, source_tokenizer,
-                                                                match_symbols=match_symbols,
-                                                                exact_match_all=exact_match_all,
-                                                                fuzzy_match_all=fuzzy_match_all)
-    # overlapping_tokens = sorted(overlapping_tokens.items(), key=lambda x: x[1].target.id)
-    # missing_tokens = sorted(missing_tokens.items(), key=lambda x: x[1].target.id)
-    missing_tokens_list = list(missing_tokens.keys())
-    overlapping_tokens_list_source = []
-    overlapping_tokens_list_target = list(overlapping_tokens.keys())
-    for t, overlapping_token in overlapping_tokens.items():
-        overlapping_tokens_list_source.append(overlapping_token.source[0].native_form)
-
-    logger.info(f'{len(overlapping_tokens)=}; {len(missing_tokens)=}')
-
-    if not overlapping_tokens:
-        raise ValueError('No overlapping tokens found')
-
-    source_token_to_idx = {t: i for t, i in source_tokenizer.get_vocab().items()}
-    # target_token_to_idx = {t: i for t, i in target_tokenizer.get_vocab().items()}
-    helper_token_to_idx = {t: i for t, i in helper_tokenizer.get_vocab().items()}
-
-    overlapping_tokens_idxs = [source_token_to_idx[t] for t in overlapping_tokens_list_source]
-    # overlapping_token_vecs = source_embeddings[overlapping_tokens_idxs, :]
-    overlapping_f = f[overlapping_tokens_idxs, :]
-
-    logger.info(f'{overlapping_f.shape=}')
-
-    # Target embeddings
     np.random.seed(seed)
     if random_init:
         logger.info(f'Use randomly initialized target embeddings')
@@ -169,7 +139,39 @@ def apply_clp(
             )
         else:
             target_embeddings = np.random.normal(size=(len(target_tokens), f.shape[1]))
+        # Multiply target embeddings with g to get full-sized embedding matrix
+        target_embeddings = np.dot(target_embeddings, g)
     else:
+        # Overlapping tokens
+        logger.info(f'Matching for overlapping tokens: {match_symbols=}; {exact_match_all=}; {fuzzy_match_all=}')
+        # overlapping tokens keys are the native form of the corresponding target token
+        overlapping_tokens, missing_tokens = get_overlapping_tokens(helper_tokenizer, source_tokenizer,
+                                                                    match_symbols=match_symbols,
+                                                                    exact_match_all=exact_match_all,
+                                                                    fuzzy_match_all=fuzzy_match_all)
+        # overlapping_tokens = sorted(overlapping_tokens.items(), key=lambda x: x[1].target.id)
+        # missing_tokens = sorted(missing_tokens.items(), key=lambda x: x[1].target.id)
+        missing_tokens_list = list(missing_tokens.keys())
+        overlapping_tokens_list_source = []
+        overlapping_tokens_list_target = list(overlapping_tokens.keys())
+        for t, overlapping_token in overlapping_tokens.items():
+            overlapping_tokens_list_source.append(overlapping_token.source[0].native_form)
+
+        logger.info(f'{len(overlapping_tokens)=}; {len(missing_tokens)=}')
+
+        if not overlapping_tokens:
+            raise ValueError('No overlapping tokens found')
+
+        source_token_to_idx = {t: i for t, i in source_tokenizer.get_vocab().items()}
+        # target_token_to_idx = {t: i for t, i in target_tokenizer.get_vocab().items()}
+        helper_token_to_idx = {t: i for t, i in helper_tokenizer.get_vocab().items()}
+
+        overlapping_tokens_idxs = [source_token_to_idx[t] for t in overlapping_tokens_list_source]
+        # overlapping_token_vecs = source_embeddings[overlapping_tokens_idxs, :]
+        overlapping_f = f[overlapping_tokens_idxs, :]
+
+        logger.info(f'{overlapping_f.shape=}')
+
         # Random init target embeddings with mean+std of source embeddings
         target_embeddings = np.random.normal(
             np.mean(f, axis=0),
@@ -182,34 +184,38 @@ def apply_clp(
         # Set overlapping tokens only if we plan on using factorized embeddings as in Pfeiffer et al. (2021)
         # for source_t, target_t in zip(overlapping_tokens_list_source, overlapping_tokens_list_target):
         #   target_embeddings[helper_token_to_idx[target_t]] = source_embeddings[source_token_to_idx[source_t]]
-
-        if missing_tokens:
-            helper_missing_tokens_vecs = helper_embeddings[[helper_token_to_idx[t] for t in missing_tokens_list], :]
-            helper_overlapping_token_vecs = helper_embeddings[
-                                            [helper_token_to_idx[t] for t in overlapping_tokens_list_target], :]
-
-            # Similarities for missing tokens
-            sims = cosine_similarity(helper_missing_tokens_vecs, helper_overlapping_token_vecs)
-
-            # similar = 1 => high weight
-            # dissimilar = 0 => low weight
-
-            for ti, t in enumerate(tqdm(missing_tokens_list)):
-                # distances to overlapping tokens
-                token_sims = sims[ti]
-                norm_sims = token_sims / token_sims.sum()
-
-                # weighted average of overlapping token embeddings with weight from similarity in helper token
-                # embedding space
-                target_vec = np.average(overlapping_f, axis=0, weights=norm_sims)
-                target_embeddings[helper_token_to_idx[t]] = target_vec
+        if random_init_missing_tokens:
+            logger.info(f"Randomly initialize missing tokens")
         else:
-            logger.warning('No missing tokens')
+            if missing_tokens:
+                helper_missing_tokens_vecs = helper_embeddings[[helper_token_to_idx[t] for t in missing_tokens_list], :]
+                helper_overlapping_token_vecs = helper_embeddings[
+                                                [helper_token_to_idx[t] for t in overlapping_tokens_list_target], :]
 
-    # Multiply target embeddings with g to get full-sized embedding matrix
-    target_embeddings = np.dot(target_embeddings, g)
-    for source_t, target_t in zip(overlapping_tokens_list_source, overlapping_tokens_list_target):
-        target_embeddings[helper_token_to_idx[target_t]] = source_embeddings[source_token_to_idx[source_t]]
+                # Similarities for missing tokens
+                sims = cosine_similarity(helper_missing_tokens_vecs, helper_overlapping_token_vecs)
+
+                # similar = 1 => high weight
+                # dissimilar = 0 => low weight
+
+                for ti, t in enumerate(tqdm(missing_tokens_list)):
+                    # distances to overlapping tokens
+                    token_sims = sims[ti]
+                    norm_sims = token_sims / token_sims.sum()
+
+                    # weighted average of overlapping token embeddings with weight from similarity in helper token
+                    # embedding space
+                    target_vec = np.average(overlapping_f, axis=0, weights=norm_sims)
+                    target_embeddings[helper_token_to_idx[t]] = target_vec
+            else:
+                logger.warning('No missing tokens')
+
+        # Multiply target embeddings with g to get full-sized embedding matrix
+        target_embeddings = np.dot(target_embeddings, g)
+        # Set overlapping tokens
+        for source_t, target_t in zip(overlapping_tokens_list_source, overlapping_tokens_list_target):
+            target_embeddings[helper_token_to_idx[target_t]] = source_embeddings[source_token_to_idx[source_t]]
+
     logger.info(f'{target_embeddings.shape=}')
 
     # Save target model

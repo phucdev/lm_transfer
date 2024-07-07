@@ -57,9 +57,9 @@ def prepare_dataset():
 
         with open(output_dir / "valid.json", "w") as f:
             size = 0
-            bar = tqdm(total=subsample_size * args.valid_percent)
+            bar = tqdm(total=subsample_size * args.valid_percentage)
 
-            while size < subsample_size * args.valid_percent:
+            while size < subsample_size * args.valid_percentage:
                 entry = next(dataset_iter)
 
                 entry_size = len(entry["text"].encode("utf-8"))

@@ -13,16 +13,21 @@ logger.setLevel(logging.INFO)
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a tokenizer")
     parser.add_argument(
+        "--use_combined_dataset",
+        action="store_true",
+        default=False,
+        help="Whether to use a combined dataset of BKAI news corpus, ViSoBERT social media text corpus, and Vietnamese"
+             "portion of OSCAR 2301, mC4 and Wikipedia",
+    )
+    parser.add_argument(
         "--dataset_name",
         type=str,
         help="Name of the dataset to train the tokenizer on",
-        required=True,
     )
     parser.add_argument(
         "--dataset_config_name",
         type=str,
         help="Name of the dataset config to use",
-        required=True,
     )
     parser.add_argument(
         "--output_dir",
@@ -33,8 +38,8 @@ def parse_args():
     parser.add_argument(
         "--vocab_size",
         type=int,
+        default=50000,
         help="Size of the vocabulary to use",
-        required=True,
     )
     parser.add_argument(
         "--original_tokenizer",
@@ -48,19 +53,29 @@ def parse_args():
 
 def main():
     args = parse_args()
-    logger.info(f"Training tokenizer on {args.dataset_name} with vocab size {args.vocab_size}")
-    # TODO: maybe merge multiple datasets, e.g. OSCAR, Wikipedia, Social Media Text Corpus from ViSoBERT, Binhvq news
-    data = datasets.load_dataset(
-        args.dataset_name, args.dataset_config_name, split="train", streaming=True
-    )
+    if args.use_combined_dataset:
+        logger.info("Using a combined dataset of BKAI news corpus, ViSoBERT social media text corpus, and Vietnamese"
+                    "portion of OSCAR 2301, mC4 and Wikipedia")
+        bkai_news = datasets.load_dataset("bkai-foundation-models/BKAINewsCorpus", split="train", streaming=True)
+        visobert = datasets.load_dataset("phucdev/ViSoBERT", split="train", streaming=True)
+        oscar = datasets.load_dataset("oscar-corpus/OSCAR-2301", "vi", split="train", streaming=True)
+        c4 = datasets.load_dataset("allenai/c4", "vi", split="train", streaming=True)
+        wikipedia = datasets.load_dataset("wikimedia/wikipedia", "20231101.vi", split="train", streaming=True)
+        data = [bkai_news, visobert, oscar, c4, wikipedia]
+    else:
+        logger.info(f"Training tokenizer on {args.dataset_name} with vocab size {args.vocab_size}")
+        data = [datasets.load_dataset(
+            args.dataset_name, args.dataset_config_name, split="train", streaming=True
+        )]
 
     def batch_iterator(batch_size=1000):
         batch = []
-        for example in data:
-            batch.append(example["text"])
-            if len(batch) == batch_size:
-                yield batch
-                batch = []
+        for dataset in data:
+            for example in dataset:
+                batch.append(example["text"])
+                if len(batch) == batch_size:
+                    yield batch
+                    batch = []
         if batch:  # yield last batch
             yield batch
 

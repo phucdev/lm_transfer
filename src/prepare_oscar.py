@@ -56,10 +56,11 @@ def prepare_dataset():
                 f.write(f"{json.dumps(entry)}\n")
 
         with open(output_dir / "valid.json", "w") as f:
+            validation_sample_size = subsample_size * args.valid_percentage / 100
             size = 0
-            bar = tqdm(total=subsample_size * args.valid_percentage)
+            bar = tqdm(total=validation_sample_size)
 
-            while size < subsample_size * args.valid_percentage:
+            while size < validation_sample_size:
                 entry = next(dataset_iter)
 
                 entry_size = len(entry["text"].encode("utf-8"))

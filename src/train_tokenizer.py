@@ -1,6 +1,8 @@
 import datasets
 import logging
 import argparse
+import requests
+import time
 
 from transformers import AutoTokenizer
 from rich.logging import RichHandler
@@ -71,11 +73,22 @@ def main():
     def batch_iterator(batch_size=1000):
         batch = []
         for dataset in data:
-            for example in dataset:
-                batch.append(example["text"])
-                if len(batch) == batch_size:
-                    yield batch
-                    batch = []
+            idx = 0
+            try:
+                for idx, example in enumerate(dataset):
+                    batch.append(example["text"])
+                    if len(batch) == batch_size:
+                        yield batch
+                        batch = []
+            except requests.exceptions.ConnectionError:
+                time.sleep(15)
+                for c_idx, example in enumerate(dataset):
+                    if c_idx < idx:
+                        continue
+                    batch.append(example["text"])
+                    if len(batch) == batch_size:
+                        yield batch
+                        batch = []
         if batch:  # yield last batch
             yield batch
 

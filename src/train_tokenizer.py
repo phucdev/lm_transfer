@@ -57,13 +57,12 @@ def main():
     args = parse_args()
     if args.use_combined_dataset:
         logger.info("Using a combined dataset of BKAI news corpus, ViSoBERT social media text corpus, and Vietnamese"
-                    "portion of OSCAR 2301, mC4 and Wikipedia")
+                    "portion of CulturaX and Wikipedia")
         bkai_news = datasets.load_dataset("bkai-foundation-models/BKAINewsCorpus", split="train", streaming=True)
         visobert = datasets.load_dataset("phucdev/ViSoBERT", split="train", streaming=True)
-        oscar = datasets.load_dataset("oscar-corpus/OSCAR-2301", "vi", split="train", streaming=True)
-        c4 = datasets.load_dataset("allenai/c4", "vi", split="train", streaming=True)
+        culturax = datasets.load_dataset("uonlp/CulturaX", "vi", split="train", streaming=True)
         wikipedia = datasets.load_dataset("wikimedia/wikipedia", "20231101.vi", split="train", streaming=True)
-        data = [bkai_news, visobert, oscar, c4, wikipedia]
+        data = [bkai_news, visobert, culturax, wikipedia]
     else:
         logger.info(f"Training tokenizer on {args.dataset_name} with vocab size {args.vocab_size}")
         data = [datasets.load_dataset(

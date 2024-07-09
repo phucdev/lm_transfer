@@ -22,6 +22,7 @@ def parse_args():
     parser.add_argument("--model_name_or_path", type=str, default="models/pythia-410m-clp-german")
     parser.add_argument("--block_size", type=int, default=1024)
     parser.add_argument("--preprocessing_num_workers", type=int, default=None)
+    parser.add_argument("--only_keep_text", default=False, action='store_true')
     args = parser.parse_args()
     return args
 
@@ -53,6 +54,10 @@ def prepare_dataset():
 
                 bar.update(entry_size)
 
+                if args.only_keep_text:
+                    entry = {
+                        "text": entry["text"],
+                    }
                 f.write(f"{json.dumps(entry)}\n")
 
         with open(output_dir / "valid.json", "w") as f:
@@ -68,6 +73,10 @@ def prepare_dataset():
 
                 bar.update(entry_size)
 
+                if args.only_keep_text:
+                    entry = {
+                        "text": entry["text"],
+                    }
                 f.write(f"{json.dumps(entry)}\n")
     if args.preprocess_dataset:
         preprocess_dataset(

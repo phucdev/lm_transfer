@@ -158,6 +158,8 @@ class FastVocabularyTransfer(VocabularyTransfer):
                 
                 tokens_map[new_index] = [gen_vocab[old_token] for old_token in token_partition]
 
+                # TODO: can we try to find a better way to aggregate the embeddings
+
         return tokens_map
 
     def embeddings_assignment(self, tokens_map, gen_model, **kwargs):

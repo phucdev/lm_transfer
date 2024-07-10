@@ -122,7 +122,7 @@ class FastVocabularyTransfer(VocabularyTransfer):
     def __init__(self):
         super().__init__()
 
-    def tokens_mapping(self, in_tokenizer, gen_tokenizer, **kwargs):
+    def tokens_mapping(self, in_tokenizer, gen_tokenizer, in_model=None, **kwargs):
         """
         This method establish a mapping between each token of
         the in-domain tokenizer (in_tokenizer) to one or more tokens from
@@ -130,6 +130,7 @@ class FastVocabularyTransfer(VocabularyTransfer):
 
         :param in_tokenizer: Any huggingface tokenizer
         :param gen_tokenizer: Any huggingface tokenizer
+        :param in_model: A huggingface model corresponding to in_tokenizer
         :param kwargs: no kwargs
 
         :return: A dictionary, having size of the in_tokenizer vocabulary.
@@ -159,6 +160,7 @@ class FastVocabularyTransfer(VocabularyTransfer):
                 tokens_map[new_index] = [gen_vocab[old_token] for old_token in token_partition]
 
                 # TODO: can we try to find a better way to aggregate the embeddings
+                #  Calculate output embeddings
 
         return tokens_map
 

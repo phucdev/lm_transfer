@@ -38,15 +38,14 @@ def small_init(tensor, dim):
 
 def apply_clp(
         source_model_name_or_path,
-        helper_model_name_or_path,
         target_model_path,
         helper_tokenizer_name_or_path=None,
         seed=42,
         override: bool = False,
         copy_overlapping_tokens: bool = False,
-        exact_match_all: bool = True,
+        exact_match_all: bool = False,
         match_symbols: bool = False,
-        fuzzy_match_all: bool = False,
+        fuzzy_match_all: bool = True,
         bilingual_dictionary: str = None
 ):
     """
@@ -75,23 +74,18 @@ def apply_clp(
 
     logger.info(f'{source_embeddings.shape=}')
 
-    # CLP
-    if not helper_tokenizer_name_or_path:
-        helper_tokenizer_name_or_path = helper_model_name_or_path
-
-    logger.info(f'Loading helper model: {helper_model_name_or_path}')
     logger.info(f'Loading helper tokenizer: {helper_tokenizer_name_or_path}')
 
-    if "bert" in helper_model_name_or_path:
-        helper_model = AutoModelForMaskedLM.from_pretrained(helper_model_name_or_path)
-    else:
-        helper_model = AutoModelForCausalLM.from_pretrained(helper_model_name_or_path)
     helper_tokenizer = AutoTokenizer.from_pretrained(helper_tokenizer_name_or_path)
-    helper_embeddings = helper_model.get_input_embeddings().weight.detach().numpy()
 
     target_tokens = set(helper_tokenizer.get_vocab().keys())
     target_tokens_list = list(helper_tokenizer.get_vocab().keys())
     source_tokens_list = list(source_tokenizer.get_vocab().keys())
+
+    source_token_to_idx = {t: i for t, i in source_tokenizer.get_vocab().items()}
+    source_idx_to_token = [t for t, i in source_token_to_idx.items()]
+    helper_token_to_idx = {t: i for t, i in helper_tokenizer.get_vocab().items()}
+    target_idx_to_token = [t for t, i in helper_token_to_idx.items()]
 
     # Load bilingual dictionary
     dict_pairs = []
@@ -101,20 +95,22 @@ def apply_clp(
             dict_pairs.append((row[0], row[1]))
     # Count co-occurrences of tokens in translation pairs
     token_freqmatrix = np.zeros((len(target_tokens_list), len(source_tokens_list)))
+    source_token_freqs = np.zeros(len(source_tokens_list))
     for en, vi in tqdm(dict_pairs, desc="Counting co-occurrences of tokens in translation pairs"):
-        en_tokens = source_tokenizer.tokenize(en)
-        vi_tokens = helper_tokenizer.tokenize(vi)
-        for vi_t in vi_tokens:
-            for en_t in en_tokens:
-                token_freqmatrix[target_tokens_list.index(vi_t)][source_tokens_list.index(en_t)] += 1
+        en_token_ids = source_tokenizer(en, add_special_tokens=False, return_tensors='pt')['input_ids'][0]
+        vi_token_ids = helper_tokenizer(vi, add_special_tokens=False, return_tensors='pt')['input_ids'][0]
+        # debug
+        en_tokens = source_tokenizer.convert_ids_to_tokens(en_token_ids)
+        vi_tokens = helper_tokenizer.convert_ids_to_tokens(vi_token_ids)
+        for vi_t in vi_token_ids:
+            for en_t in en_token_ids:
+                token_freqmatrix[vi_t][en_t] += 1
+        source_token_freqs[en_token_ids] += 1
     # Adding a small number to avoid division by zero, if necessary
     column_sums = np.sum(token_freqmatrix, axis=0) + 1e-9  # adding a small constant
-    normalized_matrix = token_freqmatrix / column_sums
-
+    normalized_matrix = token_freqmatrix / column_sums  # relative frequencies
+    adjusted_matrix = normalized_matrix / source_token_freqs  # adjusted by source token frequencies
     np.random.seed(seed)
-
-    source_token_to_idx = {t: i for t, i in source_tokenizer.get_vocab().items()}
-    helper_token_to_idx = {t: i for t, i in helper_tokenizer.get_vocab().items()}
 
     # Random init target embeddings with mean+std of source embeddings
     target_embeddings = np.random.normal(
@@ -147,17 +143,28 @@ def apply_clp(
         for source_t, target_t in zip(overlapping_tokens_list_source, overlapping_tokens_list_target):
             target_embeddings[helper_token_to_idx[target_t]] = source_embeddings[source_token_to_idx[source_t]]
 
-    for i in tqdm(range(normalized_matrix.shape[0]), desc="Applying lexicon walking"):
+    dictionary_initializations = 0
+    for i in tqdm(range(normalized_matrix.shape[0]), desc="Initialize target embeddings for missing tokens with "
+                                                          "translations"):
         # Find those whose entry is non-zero: has a translation
         relevant_source_embedding_indices = np.nonzero(normalized_matrix[i, :])[0]
+        debug_indices = np.nonzero(token_freqmatrix[i, :])[0]
         relevant_source_embeddings = source_embeddings[[t for t in relevant_source_embedding_indices], :]
+
+        # debugging
+        target_token = helper_tokenizer.convert_ids_to_tokens([i])[0]
+        relevant_source_tokens = source_tokenizer.convert_ids_to_tokens(relevant_source_embedding_indices)
+        if target_token == '▁của':
+            logger.debug(f'{target_token=}; {relevant_source_tokens=}')
+
         weights = normalized_matrix[i, relevant_source_embedding_indices]
         if weights.sum() == 0.0:
             continue
-        target_vec = np.average(relevant_source_embeddings, axis=0,
-                                weights=normalized_matrix[i, relevant_source_embedding_indices])
+        target_vec = np.average(relevant_source_embeddings, axis=0, weights=weights)
         target_embeddings[i] = target_vec
+        dictionary_initializations += 1
 
+    logger.info(f'Initialized {dictionary_initializations} target embeddings with translations')
     logger.info(f'{target_embeddings.shape=}')
 
     # Save target model

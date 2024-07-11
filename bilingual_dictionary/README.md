@@ -9,6 +9,8 @@
 - [Open DSL Dictionary Project](https://github.com/open-dsl-dict/wiktionary-dict) (based on Matthias Buchmeier): https://github.com/open-dsl-dict/wiktionary-dict/blob/master/dsl/oneway/en-vi-enwiktionary.dsl.dz
 - [WECHSEL](https://github.com/CPJKU/wechsel) (created from wiktionary dump): https://github.com/CPJKU/wechsel/tree/main/dicts/data/vietnamese.txt
   - The quality of the dictionary is not good. There is a lot of the old Vietnamese script (Chữ Nôm) and is not relevant to our use case.
+- [Paul Denisowski](http://www.denisowski.org/Vietnamese/Vietnamese.html) created from Vietnamese textbooks
+  - Textbook Vietnamese. Needed a lot postprocessing, e.g. the separator " : " was misused a few times.
 
 ### Creating a new bilingual dictionary
 There are multiple options to create a more up-to-date bilingual dictionary.
@@ -18,7 +20,7 @@ We can use the `parse.py` script in this repository to create a bilingual dictio
 the [wiktionary database dump](https://dumps.wikimedia.org/backup-index.html).
 This script is a rough python implementation of the AWK parsing script from Matthias Buchmeier.
 ```bash
-python parse.py \
+python parse_wiktionary.py \
   --out_dir bilingual_dictionary/Wiktionary \
   --dump_path bilingual_dictionary/enwiktionary-20240420-pages-articles.xml \
   --languages "german|vietnamese" \

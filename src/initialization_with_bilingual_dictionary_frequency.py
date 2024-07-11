@@ -115,7 +115,7 @@ def apply_clp(
     # Adding a small number to avoid division by zero, if necessary
     row_sums = np.sum(token_freqmatrix, axis=1).reshape(-1, 1) + 1e-9  # adding a small constant
     normalized_matrix = token_freqmatrix / row_sums  # relative frequencies
-    softmax_probs = softmax(token_freqmatrix, axis=1)
+    # softmax_probs = softmax(token_freqmatrix, axis=1)
     # sparsemax_probs = entmax.sparsemax(torch.tensor(token_freqmatrix), dim=1).numpy()
     # normalized_source_token_freqs = source_token_freqs / np.sum(source_token_freqs)  # all close to zero
     # adjusted_matrix = normalized_matrix / (normalized_source_token_freqs + 1e-9)  # adjusted by source token frequencies
@@ -209,13 +209,13 @@ def apply_clp(
         target_embeddings[i] = target_vec
 
         regular_sum = weights.sum()
-        softmax_sum = softmax_probs[i, relevant_source_embedding_indices].sum()
+        # softmax_sum = softmax_probs[i, relevant_source_embedding_indices].sum()
 
         # debugging
         abs_freqs = token_freqmatrix[i, relevant_source_embedding_indices]
-        softmaxed_relevant_source_embedding_indices = np.nonzero(softmax_probs[i, :])[0]
-        softmaxed_freqs = softmax_probs[i, softmaxed_relevant_source_embedding_indices]
-        softmaxed_relevant_tokens = source_tokenizer.convert_ids_to_tokens(softmaxed_relevant_source_embedding_indices)
+        # softmaxed_relevant_source_embedding_indices = np.nonzero(softmax_probs[i, :])[0]
+        # softmaxed_freqs = softmax_probs[i, softmaxed_relevant_source_embedding_indices]
+        # softmaxed_relevant_tokens = source_tokenizer.convert_ids_to_tokens(softmaxed_relevant_source_embedding_indices)
         # sparsemaxed_freqs = sparsemax_probs[i, relevant_source_embedding_indices]
         target_token = target_tokenizer.convert_ids_to_tokens([i])[0]
         relevant_source_tokens = source_tokenizer.convert_ids_to_tokens(relevant_source_embedding_indices)
@@ -224,12 +224,11 @@ def apply_clp(
             sorted(zip(weights, abs_freqs, relevant_source_tokens),
                    key=lambda pair: pair[0], reverse=True)
         ]
-        softmaxed_sorted_relevant_source_tokens = [
-            (w, t) for w, t in
-            sorted(zip(softmaxed_freqs, softmaxed_relevant_tokens),
-                   key=lambda pair: pair[0], reverse=True)
-        ]
-        # Debug
+        # softmaxed_sorted_relevant_source_tokens = [
+        #     (w, t) for w, t in
+        #     sorted(zip(softmaxed_freqs, softmaxed_relevant_tokens),
+        #            key=lambda pair: pair[0], reverse=True)
+        # ]
         if target_token == '▁của':
             logger.debug(f'{target_token=}; {relevant_source_tokens=}')
             logger.debug(f'{list(sorted_relevant_source_tokens)}')

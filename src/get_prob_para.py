@@ -21,7 +21,8 @@ def main(args):
 
     for line, a in zip(tqdm(bitxt), align):
         langs = line.strip().split(' ||| ')
-        if len(langs) != 2: continue
+        if len(langs) != 2:
+            continue
 
         a = [tuple(map(int, x.split('-'))) for x in a.split()]
         src_toks = langs[0].split()

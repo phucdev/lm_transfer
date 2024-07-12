@@ -47,6 +47,8 @@ def main():
             english_translations = re.split('; |, ', english)
             for translation in english_translations:
                 translation = translation.strip()
+                if not translation or not vietnamese:
+                    continue
                 out_file.write(f"{translation}\t{vietnamese}\n")
     logger.info(f"Skipped {counter} lines")
 

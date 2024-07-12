@@ -39,7 +39,6 @@ Persian	Ba Tư
 Iran	Ba Tư
 Iranian	Ba Tư
 Babylon	Ba Tỉ Luân
-	Bao Tích Nhược
 The Art of War	Binh thư yếu lược
 What can one do now!	Biết làm thế nào bây giờ
 Mare Frigoris	Biển Băng
@@ -59,12 +58,10 @@ South China Sea	Biển Đông
 Mediterranean Sea	Biển Địa Trung Hải
 Brazil	Brazin
 Brahman	Bà La Môn
-	Bàu Sỏi
 Berlin	Bá Linh
 Zoroastrianism	Bái hỏa giáo
 octagonal palace	Bát Quái Đài
 Pyongyang	Bình Nhưỡng
-	Bình Định
 Bangkok	Băng Cốc
 Iceland	Băng Ðảo
 the White House	Bạch Cung
@@ -227,7 +224,6 @@ FDA	Cục Quản Trị Lương Thực và Dược Phẩm
 Electricity Regulatory Authority of Vietnam	Cục Điều tiết điện lực
 Take it easy	Cứ từ từ
 Kyushu	Cửu Châu
-	Cửu Long
 Nine Sphere Palace	Cửu Trùng Đài
 San Francisco	Cựu Kim Sơn
 Old Testament	Cựu Ước
@@ -300,7 +296,6 @@ Vladivostok	Hải Sâm Uy
 Leo	Hải sư
 the Lion	Hải sư
 Neptune	Hải vương tinh
-	Hậu Lê
 ground fault coefficient	Hệ số sự cố chạm đất
 They’ve rented them all already	Họ muốn hết rồi
 Mars	Hỏa Tinh
@@ -310,7 +305,6 @@ Islam	Hồi Giáo
 moderate Islam	Hồi Giáo ôn hòa
 Pakistan	Hồi Quốc
 Indo-Pakistani	Hồi Ấn
-	Hồng Bàng
 Hong Kong	Hồng Công
 Hong Kong	Hồng Kông
 Red Cross	Hồng Thập Tự
@@ -368,7 +362,6 @@ Latin	La Tinh
 Roman	La Tinh
 to Romanize	La Tinh hóa
 Romanization	La Tinh hóa
-	Lai Châu
 the Russian Union	Liên Bang Nga
 Federation	Liên Bang Nga
 The Russian Federation is only a shadow of the former Soviet Union	Liên Bang Nga là một vang bóng của Liên Xô ngày xưa
@@ -481,8 +474,6 @@ World Bank	Ngân Hàng Thế Giới
 Central Bank	Ngân Hàng Trung Ương
 Bank for Investment and Development	Ngân Hàng Đầu Tư và Phát Triển
 Global Petroleum Commercial Bank	Ngân hàng TMCP dầu khí toàn cầu
-	Ngô
-	Ngô Đình Diệm
 the Golden Temple	Ngôi đền Vàng Kinkaku-gi
 Pentagon	Ngũ Giác Đài
 Hades	Ngọc tuyền
@@ -513,7 +504,6 @@ Noah	Nô Ê
 Nom	Nôm
 Nghị Định Chính Phủ	NĐ-CP
 Here lies ~	Nơi đây an nghĩ
-	Nội Bài
 Inner Mongolia	Nội Mông
 New York	Nữu Ước
 phó giám đốc	P.GĐ
@@ -583,7 +573,6 @@ corporation	TCT
 Tổng giám đốc	TGĐ
 tây lịch	TL
 trách nhiệm hữu hạn	TNHH
-	TP.HCM
 thành phố Hồ Chí Minh	TPHCM
 Trung Quốc	TQ
 Marines	TQLC
@@ -594,7 +583,6 @@ Tibet	Tang
 Tibetan	Tang
 sun	Thai Dương
 Solar system	Thai Dương Hệ
-	Thanh Hóa
 Tiananmen	Thiên An Môn
 Mikado	Thiên Hoàng
 Palace of Wisdom	Thiên Hỉ Động
@@ -613,7 +601,6 @@ the Pacific Ocean	Thái Bình Dương
 Tae Kwon Do	Thái Cực Đạo
 Showa Restoration	Thái Hòa Phục Hưng
 Thailand	Thái Lan
-	Thái Sơn
 Tartar	Thát Đát
 Mongol	Thát Đát
 Vietnamese News Agency	Thông Tấn Xã Việt Nam
@@ -666,7 +653,6 @@ load recovery procedure	Trình tự phục hồi phụ tải
 meditation hall	Trí Huệ Cung
 Red Square	Trường Đỏ
 International Space Station	Trạm Không Gian Quốc Tế
-	Trần
 World War II	Trận Thế Chiến Thứ Nhất
 Second World War	Trận Thế Chiến Thứ Nhất
 corsair	Tàu ô
@@ -685,8 +671,6 @@ French	Tây
 Spain	Tây Ban Nha
 Spanish	Tây Ban Nha
 Siberia	Tây Bá Lợi á
-	Tây Ninh
-	Tây Sơn
 Tibet	Tây Tạng
 Tibetan	Tây Tạng
 Western hemisphere	Tây bán cầu
@@ -777,7 +761,6 @@ Soviet	Xô Viết
 Jerusalem	Yêrusalem
 Jesus	Yêsu
 Jesus Christ	Yêsu Kitô
-	a
 sickle	a
 to rush	a
 dash	a
@@ -7104,7 +7087,6 @@ sack	bị
 to suffer	bị
 undergo	bị
 experience	bị
-	bị
 to prepare for in advance	bị
 to be forced	bị buộc
 to be shipwrecked	bị bảo táp
@@ -7932,7 +7914,6 @@ perfect	bổ xung
 replacement	bổ xung
 useful	bổ ích
 interesting	bổ ích
-	bổn
 business	bổn phận
 duty	bổn phận
 obligation	bổn phận
@@ -9102,11 +9083,9 @@ unripe lime	chanh cốm
 young girl	chanh cốm
 thin-peel lemon	chanh giấy
 lemon with rosy pulp	chanh đào
-	chao
 lamp shade	chao
 dishonest	chao chát
 crooked	chao chát
-	chao ôi
 stagger	chao đảo
 waver	chao đảo
 to frown	chau
@@ -10306,7 +10285,6 @@ city mouse	chuột thành phố
 field-mouse	chuột đồng
 field mouse	chuột đồng quê
 country mouse	chuột đồng quê
-	chà
 to crush	chà
 grind	chà
 date	chà là
@@ -11215,7 +11193,6 @@ formal eulogy with wishes	chúc từ
 to open slightly	chúm chím
 group	chúng
 people	chúng
-	chúng
 friends	chúng bạn
 we (when addressing one’s uncle or aunt or one’s	chúng cháu
 we (when addressing one’s parents or grandparents or one’s	chúng con
@@ -11309,7 +11286,6 @@ breed silk-worms	chăn tằm
 thin blanket	chăn đơn
 to stretch	chăng
 spread	chăng
-	chăng
 stretch wire or rope	chăng dây
 to spread	chăng lưới
 a net	chăng lưới
@@ -12839,7 +12815,6 @@ do not	chớ
 let’s not	chớ
 should not	chớ
 do not	chớ
-	chớ
 who else	chớ ai
 who else could it be?	chớ ai nữa
 take care	chớ chết
@@ -13564,8 +13539,6 @@ female child	con gái
 naked dancer	con gái nhảy cởi truồng
 stripper	con gái nhảy cởi truồng
 beloved daughter	con gái rượu
-	con gì
-	con gì nữa
 illegitimate child	con gạnh
 pornographic	con heo
 dirty	con heo
@@ -14335,7 +14308,6 @@ river fish	cá đồng
 fresh-water fish	cá đồng
 rotten	cá ươn
 spoiled fish	cá ươn
-	các
 these	các
 various	các
 council chambers	các
@@ -15718,7 +15690,6 @@ significant	có tầm vóc
 significance	có tầm vóc
 if the cap or shoe fits	có tật giật mình
 wear it	có tật giật mình
-	có tật giật mình
 to have the habit of telling tales	có tật hay bép xép
 guilty	có tội
 culpable	có tội
@@ -15799,7 +15770,6 @@ to have high priority	có ưu tiên cao
 to influence	có ảnh hưởng
 be influential	có ảnh hưởng
 toad	cóc
-	cóc
 not to need	cóc cần
 jagged	cóc gặm
 notched	cóc gặm
@@ -17224,7 +17194,6 @@ to rub	cạ
 card	cạc
 quack	cạc cạc
 to cackle	cạc cạc
-	cạch
 trap	cạm
 snare	cạm bẫy
 trap	cạm bẫy
@@ -19158,7 +19127,6 @@ pachyrrhizus	củ đậu
 to move	củ động
 movement	củ động
 caltrops	củ ấu
-	của
 of	của
 property	của
 possessions	của
@@ -19169,7 +19137,6 @@ of the United States	của Mỹ
 American	của Mỹ
 U.S.	của Mỹ
 whose?	của ai
-	của anh
 her	của bà
 hers	của bà
 valuables	của báu
@@ -19184,7 +19151,6 @@ riches	của cải
 fortune	của cải
 havings	của cải
 wealth	của cải
-	của em
 rare object	của hiếm
 rarity	của hiếm
 entail	của hương hỏa
@@ -21326,7 +21292,6 @@ practice	dượt
 train	dượt
 to train for a race	dượt để đua
 polite yes	dạ
-	dạ
 OK	dạ
 stomach	dạ
 abdomen	dạ
@@ -21349,7 +21314,6 @@ gem	dạ minh châu
 fire-fly	dạ quang
 glow-worm	dạ quang
 shout "yes" repeatedly	dạ ran
-	dạ thưa
 nocturnal rain	dạ vũ
 night demon	dạ xoa
 night feast	dạ yến
@@ -22437,7 +22401,6 @@ wasp waist	eo lưng ong
 to scream	eo éo
 confused noise	eo óc
 din	eo óc
-	eo ôi
 isthmus	eo đất
 fluorine	flo
 fluoride	flo rua
@@ -22757,7 +22720,6 @@ family annals	gia phả
 family register	gia phả
 family register	gia phổ
 mother	gia phụ
-	gia quan
 family relations	gia quyến
 relatives	gia quyến
 father	gia quân
@@ -24378,7 +24340,6 @@ death anniversaries and festivities	giỗ tết
 year’s mind	giỗ đầu
 to pour	giội
 dash	giội
-	giới
 limit	giới
 border	giới
 group of people	giới
@@ -25887,7 +25848,6 @@ sciolistic	hay chữ lỏng
 or something like that	hay gì đó
 interesting	hay ho
 nice	hay hớm
-	hay không
 or not	hay không
 or	hay là
 contagious	hay lây
@@ -27421,7 +27381,6 @@ generous	hào sảng
 twenty-cent coin	hào ván
 oyster	hàu
 to open one’s mouth	há
-	há
 wouldn’t	há chẳng
 how dare	há dám
 would it be easy to	há dể
@@ -27613,7 +27572,6 @@ be in luck’s way	hên
 be absorbed in	hì hà hì hục
 be engrossed in	hì hà hì hục
 be wrapped up in	hì hà hì hục
-	hì hì
 with zeal	hì hục
 zealously	hì hục
 give oneself up to	hì hục
@@ -27819,7 +27777,6 @@ concord	hòa hảo
 harmony	hòa hảo
 united	hòa hảo
 both	hòa hảo
-	hòa hảo
 to mix	hòa hỗn
 peace conference	hòa hội
 to agree	hòa hợp
@@ -29654,7 +29611,6 @@ lake	hố
 pit	hố
 gap	hố
 bomb crater	hố bom
-	hố hố
 orbit	hố mắt
 explosive crater	hố nổ
 collapsed crater	hố sụp
@@ -30177,7 +30133,6 @@ to be in sulks	hờn giận
 sulk mildly	hờn mát
 open	hở
 uncovered	hở
-	hở
 let the cat out of the bag	hở cơ
 expose unintentionally one’s weak spot	hở cơ
 low-cut	hở hang
@@ -30191,7 +30146,6 @@ decolleté	hở vai
 low-cut	hở vai
 to one’s liking	hởi dạ
 be fully satisfied	hởi lòng hởi dạ
-	hỡi
 twelvth year of the Chinese zodiac	hợi
 conceited	hợm
 supercilious	hợm hĩnh
@@ -30625,7 +30579,6 @@ be in good health	khang ninh
 well and prosperous	khang thái
 vast	khang trang
 spacious	khang trang
-	khanh
 pealing	khanh khách
 high-ranking civil and military court officials	khanh tướng
 to feast	khao
@@ -31864,7 +31817,6 @@ unutterable	khôn tả
 unspeakable	khôn tả
 no	không
 not	không
-	không
 air	không
 empty	không
 non-Communist	không CS
@@ -32519,7 +32471,6 @@ tense	khẩn trương
 kowtow and pray under one’s breath	khẩn vái
 urgent and important	khẩn yếu
 to clear lands	khẩn điền
-	khẩu
 gauze mask	khẩu chao
 respirator	khẩu chao
 improvise	khẩu chiếm
@@ -33789,7 +33740,6 @@ sun-glasses	kính râm
 respect and fear	kính sợ
 telescope	kính thiên lý
 astronomical telescope	kính thiên văn
-	kính thư
 periscope	kính tiềm vọng
 report respectfully	kính trình
 telemeter	kính trắc viễn
@@ -35063,7 +35013,6 @@ war dead	liệt sĩ
 all the saints	liệt thánh
 stories of celebrities	liệt truyện
 biographies	liệt truyện
-	liệu
 to think about	liệu
 reflect	liệu
 foresee	liệu
@@ -37422,7 +37371,6 @@ deceive	lường đảo
 tongue	lưỡi
 blade	lưỡi
 sickle	lưỡi
-	lưỡi
 ploughshare	lưỡi cày
 fishhook	lưỡi câu
 plowshare	lưỡi cầy
@@ -37619,7 +37567,6 @@ re-	lại
 to come	lại
 reach	lại
 get to	lại
-	lại
 ministry of the interior	lại bộ
 to recover one’s appetite	lại bữa
 to come to visit	lại chơi
@@ -37715,7 +37662,6 @@ dear lord	lạy chúa
 dear god	lạy chúa
 beseech	lạy lục
 supplicate	lạy lục
-	lạy trời lạy đất
 god help	lạy trời lạy đất
 heaven help	lạy trời lạy đất
 fall on one’s knees and give thanks to somebody	lạy tạ
@@ -38289,7 +38235,6 @@ jingle	lẻng kẻng
 to cut neatly	lẻo
 have the gift of the gab	lẻo mép
 loquacious	lẻo mép
-	lẽ
 reason	lẽ
 argument	lẽ
 secondary	lẽ
@@ -39111,7 +39056,6 @@ income	lợi lộc
 source of profit	lợi nguyên
 gains	lợi nhuận
 profits	lợi nhuận
-	lợi quyền
 interests	lợi quyền
 interest rate	lợi suất
 galactagogue	lợi sữa
@@ -40070,7 +40014,6 @@ just	mà thôi
 only	mà thôi
 merely	mà thôi
 that’s all	mà thôi
-	mà!
 to rub	mài
 file	mài
 whet	mài
@@ -40266,7 +40209,6 @@ cupidity	máu tham
 flesh and blood	máu thịt
 blood and bones	máu xương
 blood flowed out	máu ộc ra
-	máy
 engine	máy
 machine	máy
 motor	máy
@@ -40743,7 +40685,6 @@ we	mình
 body	mình mẩy
 trunk	mình mẩy
 to have an iron constitution	mình đồng da sắt
-	mình ơi
 eyelid	mí
 eyelid	mí mắt
 sugar cane	mía
@@ -41101,7 +41042,6 @@ decayed particles	mùn thớt
 filth	mùn thớt
 dirt on a chopping board	mùn thớt
 mosquito net	mùng
-	mùng
 gudgeon	mú
 to dance	múa
 gesture	múa
@@ -42187,7 +42127,6 @@ mother-in-law	mẹ chồng
 mother and child	mẹ con
 stepmother	mẹ ghẻ
 old mother	mẹ già
-	mẹ kiếp
 stepparent	mẹ kế
 stepmother	mẹ kế
 child kidnapper	mẹ mìn
@@ -42564,7 +42503,6 @@ tongue	mồm miệng
 tongue	mồm mép
 gift of the gad	mồm mép
 to pay lip service	mồm rêu rao
-	mồng
 the tenth of January	mồng mười tháng giêng
 The first	mồng một
 malabar nightshade	mồng tơi
@@ -45098,7 +45036,6 @@ ivory	ngà voi
 gentleman	ngài
 lord	ngài
 sir	ngài
-	ngài
 his majesty	ngài ngự
 dovetail halving	ngàm
 thousand	ngàn
@@ -48217,7 +48154,6 @@ quietly	nhè nhẹ
 softly	nhè nhẹ
 troublesome	nhèo nhẹo
 importunate	nhèo nhẹo
-	nhé
 weakly and whimpering	nhéo nhẹo
 trefoil	nhép
 club	nhép
@@ -49838,7 +49774,6 @@ half-dead within an inch of one’s life	nhừ tử
 get a sound beating	nhừ đòn
 to entice	nhử
 lure	nhử
-	những
 several	những
 various	những
 to be only	những
@@ -52826,7 +52761,6 @@ lap	oàm oạp
 to fall frequently	oành oạch
 to croak	oác oác
 swell	oách
-	oái
 awkward	oái oăm
 awkward	oái ăm
 complicated	oái ăm
@@ -54690,7 +54624,6 @@ faint from a cold	phải gió
 be born at an inauspicious hour	phải giờ
 die at an inauspicious hour	phải giờ
 at an unlucky moment of	phải khi
-	phải không
 to have to be	phải là
 must do	phải làm sao
 be in love with	phải lòng
@@ -57693,7 +57626,6 @@ maggot	ròi
 skinny	ròm
 thin	ròm
 lean	ròm
-	ròm
 pure	ròng
 uninterrupted	ròng rã
 without a break	ròng rã
@@ -60563,7 +60495,6 @@ scar node	sẹo
 sparrow	sẻ
 stingy	sẻn so
 miserly	sẻn so
-	sẽ
 shall	sẽ
 will	sẽ
 will have	sẽ có
@@ -61266,7 +61197,6 @@ deed	sự
 act	sự
 action event	sự
 occurrence	sự
-	sự
 a contended life for the people	sự an cư cho dân chúng
 happiness	sự an phận
 burial	sự an táng
@@ -62162,7 +62092,6 @@ charcoal	than
 to lament	than
 complain	than
 moan	than
-	than
 briquette	than bánh
 fat coal	than béo
 peat	than bùn
@@ -62191,7 +62120,6 @@ to lament	than vãn
 moan	than vãn
 animal charcoal	than xương
 cinder	than xỉ
-	than ôi
 coal	than đá
 live coals	than đỏ
 ladder	thang
@@ -62734,7 +62662,6 @@ God	thiên
 heavenly	thiên
 divine	thiên
 celestial	thiên
-	thiên
 to move	thiên
 shift	thiên
 change	thiên
@@ -64370,7 +64297,6 @@ in contrast	thì lại
 but	thì lại
 however	thì lại
 but now	thì nay
-	thì phải
 perhaps	thì phải
 then it has to be that way	thì phải vậy
 actually	thì ra
@@ -64429,7 +64355,6 @@ sacrifice oneself	thí thân
 experimental place	thí điểm
 test regions	thí điểm
 to like	thích
-	thích
 to obtain complete satisfaction	thích chí
 to fit	thích hợp
 suit	thích hợp
@@ -65038,7 +64963,6 @@ bookstore	thư điếm
 email	thư điện
 email	thư điện tử
 scholar’s houseboy	thư đồng
-	thưa
 answer	thưa
 reply	thưa
 sparse	thưa
@@ -66085,7 +66009,6 @@ contract	thắt đáy
 make narrower	thắt đáy
 lizard	thằn lằn
 draco	thằn lằn bay
-	thằng
 black American	thằng Mỹ đen
 Viet Cong	thằng Việt cộng
 little boy	thằng bé
@@ -67196,7 +67119,6 @@ varicella	thủy đậu
 chicken-pox	thủy đậu
 hydrodynamics	thủy động học
 hydrodynamics	thủy động lực học
-	thứ
 order	thứ
 type	thứ
 suit	thứ
@@ -67814,7 +67736,6 @@ Mr.	tiên sinh
 Sir	tiên sinh
 patron saint of a trade	tiên sư
 founder	tiên sư
-	tiên sư
 a priori	tiên thiên
 preformation	tiên thành
 saints	tiên thánh
@@ -71859,12 +71780,8 @@ blue sky	trời xanh
 the rain has abated	trời đã ngớt mưa
 the sky got dark	trời đã tối
 heaven and earth	trời đất
-	trời đất
 good heavens	trời đất thánh thần
 the beautiful weather returns	trời đẹp trở lại
-	trời ơi
-	trời ơi đất hỡi
-	trời ạ
 to overlap	trờm
 be a little frightened	trờn trợn
 scared	trờn trợn
@@ -72906,7 +72823,6 @@ boat	tàu
 stable	tàu
 China	tàu
 Chinese	tàu
-	tàu
 plane	tàu bay
 airplane	tàu bay
 ship	tàu biển
@@ -73828,7 +73744,6 @@ mason bee	tò vò
 wall bee arch	tò vò
 court	tòa
 office	tòa
-	tòa
 newspaper office	tòa báo
 bishop’s palace	tòa giám mục
 appeals court	tòa kháng án
@@ -74298,7 +74213,6 @@ dark	tăm tối
 to increase	tăng
 raise	tăng
 tank	tăng
-	tăng
 Buddhist priest	tăng
 Buddhist monk	tăng
 to hate	tăng
@@ -76291,7 +76205,6 @@ peak	tột
 top	tột
 summit	tột
 highest point	tột
-	tột
 top level	tột bực
 top notch	tột bực
 maximum	tột cùng
@@ -76821,7 +76734,6 @@ that is	từc là
 therefore	từc là
 to equal	từc là
 be	từc là
-	từng
 each	từng
 one by one	từng
 every	từng
@@ -78722,7 +78634,6 @@ to sharpen	vót
 whittle	vót
 in-	vô
 im-	vô
-	vô
 in	vô
 at	vô
 on	vô
@@ -79952,7 +79863,6 @@ everything changes	vật đổi sao dời
 so	vậy
 thus	vậy
 that	vậy
-	vậy cũng được
 that’ll be O.K.	vậy cũng được
 is that so?	vậy hả
 in that case	vậy là
@@ -82947,8 +82857,6 @@ Australian	Úc Châu
 Australia	Úc Đại Lợi
 I want to say is	Ý tôi muốn nói là
 What I mean to say is	Ý tôi muốn nói là
-	à
-	à
 oh	à
 by the way	à
 to rush	à
@@ -82975,7 +82883,6 @@ boom	ào ào
 to rush	ào ạt
 impetuous	ào ạt
 vehement	ào ạt
-	á
 Asia	á
 Asian	á
 Asiatic	á
@@ -83151,10 +83058,7 @@ bad luck	ách vận
 difficulty	ách vận
 misfortune	ách vận
 to love	ái
-	ái
 ouch! ow!	ái
-	ái chà
-	ái dà
 to covet	ái dục
 desire	ái dục
 to like women	ái hoa
@@ -83951,7 +83855,6 @@ tranquil	êm ấm
 silent	êm ắng
 quiet	êm ắng
 noiseless	êm ắng
-	êu
 motionless	ì
 stubborn	ì
 immobile	ì
@@ -84143,7 +84046,6 @@ oxide	ô-xít
 ozone	ô-zôn
 spoiled	ôi
 rotten	ôi
-	ôi
 alas!	ôi chao
 rancid	ôi khét
 to embrace	ôm
@@ -84363,7 +84265,6 @@ dried up	úa
 yellow	úa vàng
 wilt	úa vàng
 oogh! oof!	úi
-	úi chà!
 under the weather	úi úi
 sick	úi úi
 to warm in one’s arms	úm
@@ -84811,7 +84712,6 @@ noise antenna	ăng ten trừ nhiễu âm
 omnidirectional antenna	ăng ten vô hướng
 fishpole antenna	ăng ten ứng chế
 antimony	ăng ti moan
-	ĐB
 Đảng Cộng Sản	ĐCS
 motherfucker	ĐM
 Đông Nam Á Châu	ĐNÁ
@@ -84993,7 +84893,6 @@ limning art	đan thanh
 loyalty	đan tâm
 constancy	đan tâm
 apothecary	đan đình
-	đang
 waiting for	đang chờ đón
 still in VN	đang còn ở Vietnamese
 being	đang có
@@ -85193,7 +85092,6 @@ pursue steadily	đeo đẳng
 follow	đeo đẳng
 to put in earplugs	đeo ống chống âm thanh vào
 to go	đi
-	đi
 to go to a convalescent home	đi an dưỡng
 to fly	đi bay
 go flying	đi bay
@@ -86890,7 +86788,6 @@ everywhere	đâu đâu
 everywhere	đâu đâu ~ cũng
 someplace	đâu đó
 somewhere	đâu đó
-	đâu!
 here	đây
 this place	đây
 this	đây
@@ -86906,7 +86803,6 @@ here I am	đây nì
 here it is	đây nì
 here it is	đây rồi
 I found it	đây rồi
-	đã
 first	đã
 after	đã
 following	đã
@@ -86940,7 +86836,6 @@ it was too late	đã trễ
 the time has come	đã tới lúc
 it had been a long time	đã từ lâu
 it was a long time since	đã từ lâu
-	đã từng
 even then	đã về
 to have happened	đã xảy ra
 have occurred	đã xảy ra
@@ -88059,7 +87954,6 @@ brusk	đường đột
 path of life	đường đời
 main	đường ống
 pipe	đường ống
-	được
 can	được
 be able	được
 okay	được
@@ -88359,7 +88253,6 @@ reflexive pronoun	đại từ phản thân
 big character	đại tự
 big calligraphic sing	đại tự
 panoramic	đại vĩ tuyến
-	đại vương
 general amnesty	đại xá
 great banquet	đại yến
 fiendishly cruel	đại ác
@@ -91227,7 +91120,6 @@ of a know-all	đủ điều
 fishtail-palm	đủng đỉnh
 slow	đủng đỉnh
 leisurely	đủng đỉnh
-	đứa
 a boy	đứa bé
 a child	đứa bé
 a perverse child	đứa bé ngang ngược
@@ -91243,7 +91135,6 @@ the child begins to learn to speak	đứa trẻ bắt đầu tập nói
 children	đứa trẻ con
 an orphan child	đứa trẻ mồ côi
 virtue	đức
-	đức
 Germany	đức
 Lord Jesus Christ	đức Yêsu Kitô
 monsignor	đức cha
@@ -91409,8 +91300,6 @@ dark	ũm thũm
 medium-sized earthen pot	ơ
 to be indifferent	ơ hờ
 euro	ơ rô
-	ơi
-	ơi là
 how	ơi là
 favor	ơn
 benefit	ơn nghĩa
@@ -91613,7 +91502,6 @@ soaked with sweat	ướt đẫm mồ hôi
 to stick out	ưỡn
 to mince	ưỡn ẹo
 twist	ưỡn ẹo
-	ạ
 flop	ạch
 flump	ạch
 hallucination	ạo ực
@@ -92087,7 +91975,6 @@ unmarketable	ế ẩm
 frog	ếch
 amphibians	ếch nhái
 swell	ếnh
-	ếp
 come along!	ề
 to drawl out	ề à
 hum and haw	ề à
@@ -92642,7 +92529,6 @@ tired	ủ ê
 worn out	ủ ê
 sorrowful	ủ ê
 to cherish	ủ ấp
-	ủa
 to press	ủi
 iron	ủi
 push	ủi
@@ -92651,7 +92537,6 @@ moist	ủi ủi
 slightly damp	ủi ủi
 onomatopoeia for the grunting of pigs	ủn ỉn
 grunt	ủn ỉn
-	ủng
 boot	ủng
 to support	ủng hộ
 stand up for	ủng hộ

@@ -58,7 +58,7 @@ def create_bilingual_mapping(file_path, out_file, skip_multi_words=False):
                         continue
                     else:
                         mapping[word].append(translation)
-                if not translation.strip():
+                if not translation.strip() or not word.strip():
                     continue
                 out_file.write(f"{word}\t{translation}\n")
 

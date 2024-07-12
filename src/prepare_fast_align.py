@@ -1,46 +1,130 @@
 import transformers
+import argparse
 
 from tqdm import tqdm
 
 
-def main():
-    sample = False
-    if sample:
-        en_file = "parallel_data/sample.en"
-        vi_file = "parallel_data/sample.vi"
-        out_file = "parallel_data/sample-sample-parallel-en-vi.txt"
-        lines = 1000
-    else:
-        en_file = "parallel_data/OpenSubtitles.en-vi.en"
-        vi_file = "parallel_data/OpenSubtitles.en-vi.vi"
-        out_file = "parallel_data/parallel2-en-vi.txt"
-        lines = 3505276
-    source_tokenizer = transformers.AutoTokenizer.from_pretrained("FacebookAI/xlm-roberta-base")
-    target_tokenizer = transformers.AutoTokenizer.from_pretrained("tokenizers/vi-spm-oscar")
+def process_batch(en_batch, vi_batch, source_tokenizer, target_tokenizer):
+    buffer = []
+    en_input_ids_batch = source_tokenizer.batch_encode_plus(en_batch, add_special_tokens=False)["input_ids"]
+    vi_input_ids_batch = target_tokenizer.batch_encode_plus(vi_batch, add_special_tokens=False)["input_ids"]
+    for en_input_ids, vi_input_ids in zip(en_input_ids_batch, vi_input_ids_batch):
+        en_tokenized = " ".join(source_tokenizer.convert_ids_to_tokens(en_input_ids))
+        vi_tokenized = " ".join(target_tokenizer.convert_ids_to_tokens(vi_input_ids))
+        buffer.append(f'{en_tokenized} ||| {vi_tokenized}\n')
+    return buffer
 
-    with open(en_file, 'r') as en_reader, open(vi_file, 'r') as vi_reader, open(out_file, 'w') as writer:
-        en_batch = []
-        vi_batch = []
-        for en_line, vi_line in tqdm(zip(en_reader, vi_reader), desc="Processing", total=lines):
-            en_batch.append(en_line.strip())
-            vi_batch.append(vi_line.strip())
-            if len(en_batch) < 10000:
-                continue
-            en_tokenized = [" ".join(source_tokenizer.tokenize(en_line)) for en_line in en_batch]
-            vi_tokenized = [" ".join(target_tokenizer.tokenize(vi_line)) for vi_line in vi_batch]
-            buffer = []
-            for en_tokens, vi_tokens in zip(en_tokenized, vi_tokenized):
-                buffer.append(f'{en_tokens} ||| {vi_tokens}')
-            writer.writelines(buffer)
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Prepare parallel data for fast_align.")
+    parser.add_argument(
+        "--sample",
+        action="store_true",
+        default=False,
+        help="Use sample data."
+    )
+    parser.add_argument(
+
+        "--bilingual_dictionary",
+        action="store_true",
+        default=False,
+        help="Use bilingual dictionary."
+    )
+    parser.add_argument(
+
+        "--source_tokenizer",
+        type=str,
+        default="FacebookAI/xlm-roberta-base",
+        help="Source tokenizer."
+    )
+    parser.add_argument(
+        "--target_tokenizer",
+        type=str,
+        default="tokenizers/vi-spm-oscar",
+        help="Target tokenizer."
+    )
+    parser.add_argument(
+        "--dict_file",
+        type=str,
+        default="bilingual_dictionary/PaulDenisowski/english-vietnamese.txt",
+        help="Bilingual dictionary file."
+    )
+    parser.add_argument(
+        "--out_file",
+        type=str,
+        required=True,
+        help="Output file.")
+    parser.add_argument(
+        "--en_file",
+        type=str,
+        default="parallel_data/full/OpenSubtitles.en-vi.en",
+        help="English file."
+    )
+    parser.add_argument(
+        "--vi_file",
+        type=str,
+        default="parallel_data/full/OpenSubtitles.en-vi.vi",
+        help="Vietnamese file."
+    )
+    return parser.parse_args()
+
+
+def main():
+    args = parse_args()
+    sample = args.sample
+    bilingual_dictionary = args.bilingual_dictionary
+
+    source_tokenizer = transformers.AutoTokenizer.from_pretrained(args.source_tokenizer)
+    target_tokenizer = transformers.AutoTokenizer.from_pretrained(args.target_tokenizer)
+
+    out_file = args.out_file
+
+    if bilingual_dictionary:
+        dict_file = args.dict_file
+        with open(dict_file, 'r') as reader, open(out_file, 'w') as writer:
             en_batch = []
             vi_batch = []
-        if en_batch:
-            en_tokenized = [" ".join(source_tokenizer.tokenize(en_line)) for en_line in en_batch]
-            vi_tokenized = [" ".join(target_tokenizer.tokenize(vi_line)) for vi_line in vi_batch]
-            buffer = []
-            for en_tokens, vi_tokens in zip(en_tokenized, vi_tokenized):
-                buffer.append(f'{en_tokens} ||| {vi_tokens}')
-            writer.writelines(buffer)
+            for line in tqdm(reader, desc="Processing"):
+                split_line = line.strip().split("\t")
+                if len(split_line) != 2:
+                    continue
+                en, vi = split_line[0], split_line[1]
+                en_batch.append(en)
+                vi_batch.append(vi)
+                if len(en_batch) < 10000:
+                    continue
+                buffer = process_batch(en_batch, vi_batch, source_tokenizer, target_tokenizer)
+                writer.writelines(buffer)
+                en_batch = []
+                vi_batch = []
+            if en_batch:
+                buffer = process_batch(en_batch, vi_batch, source_tokenizer, target_tokenizer)
+                writer.writelines(buffer)
+    else:
+        en_file = args.en_file
+        vi_file = args.vi_file
+        if sample:
+            lines = 1000
+        else:
+            lines = 3505276     # Number of lines in OpenSubtitles.en-vi.en, change if you use a different dataset
+
+        with open(en_file, 'r') as en_reader, open(vi_file, 'r') as vi_reader, open(out_file, 'w') as writer:
+            en_batch = []
+            vi_batch = []
+            for idx, (en_line, vi_line) in tqdm(enumerate(zip(en_reader, vi_reader)), desc="Processing", total=lines):
+                if idx >= lines:
+                    break
+                en_batch.append(en_line.strip())
+                vi_batch.append(vi_line.strip())
+                if len(en_batch) < 10000:
+                    continue
+                buffer = process_batch(en_batch, vi_batch, source_tokenizer, target_tokenizer)
+                writer.writelines(buffer)
+                en_batch = []
+                vi_batch = []
+            if en_batch:
+                buffer = process_batch(en_batch, vi_batch, source_tokenizer, target_tokenizer)
+                writer.writelines(buffer)
 
 
 if __name__ == '__main__':

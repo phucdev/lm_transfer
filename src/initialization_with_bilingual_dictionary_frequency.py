@@ -104,6 +104,7 @@ def apply_clp(
             continue
         en_token_ids = source_tokenizer(en, add_special_tokens=False, return_tensors='pt')['input_ids'][0]
         vi_token_ids = target_tokenizer(vi, add_special_tokens=False, return_tensors='pt')['input_ids'][0]
+        # TODO handle cases where are direct translations differently
         # debug
         en_tokens = source_tokenizer.convert_ids_to_tokens(en_token_ids)
         vi_tokens = target_tokenizer.convert_ids_to_tokens(vi_token_ids)
@@ -156,6 +157,7 @@ def apply_clp(
     for special_token in source_tokenizer.all_special_tokens:
         target_special_token = special_tokens_mapping[special_token]
         if target_special_token in target_tokens:
+            # TODO check whether this works for other cases, e.g. pythia
             special_token_idx = target_token_to_idx[target_special_token]
             target_embeddings[special_token_idx] = source_embeddings[source_token_to_idx[special_token]]
             overlapping_token_indices.append(special_token_idx)
@@ -243,7 +245,6 @@ def apply_clp(
 
     # Save target model
     target_model = source_model
-    target_tokenizer = target_tokenizer
     target_model.resize_token_embeddings(len(target_tokenizer))
     target_model.get_input_embeddings().weight.data = torch.from_numpy(target_embeddings)
 

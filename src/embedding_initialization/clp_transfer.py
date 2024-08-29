@@ -24,17 +24,26 @@ class CLPTokenizerTransfer(OverlapTokenizerTransfer):
             target_tokenizer_name_or_path: str,
             helper_model_name_or_path: str,
             helper_tokenizer_name_or_path: str = None,
-            target_model_path: str = None
+            target_model_path: str = None,
+            **kwargs
     ):
         """
         Class for transferring embeddings from one tokenizer to another using CLP method by Ostendorff & Rehm (2023).
+        Adapted from https://github.com/malteos/clp-transfer/blob/main/clp.py
+        @misc{Ostendorff2023clp,
+          doi = {10.48550/ARXIV.2301.09626},
+          author = {Ostendorff, Malte and Rehm, Georg},
+          title = {Efficient Language Model Training through Cross-Lingual and Progressive Transfer Learning},
+          publisher = {arXiv},
+          year = {2023}
+        }
         :param source_model_name_or_path:
         :param target_tokenizer_name_or_path:
         :param target_model_path:
         :param helper_model_name_or_path:
         :param helper_tokenizer_name_or_path:
         """
-        super().__init__(source_model_name_or_path, target_tokenizer_name_or_path, target_model_path)
+        super().__init__(source_model_name_or_path, target_tokenizer_name_or_path, target_model_path, **kwargs)
         self.helper_model_name_or_path = helper_model_name_or_path
         self.helper_tokenizer_name_or_path = helper_tokenizer_name_or_path if helper_tokenizer_name_or_path else helper_model_name_or_path
 
@@ -49,7 +58,9 @@ class CLPTokenizerTransfer(OverlapTokenizerTransfer):
 
     def initialize_embeddings(self, **kwargs):
         """
-        Method that initializes the embeddings of a given LM with the source embeddings.
+        Method that initializes the embeddings of a LM with a target tokenizer given a source LM.
+        Leverages overlap between the source vocabulary and the target vocabulary to directly copy source embeddings
+        and uses a helper model to initialize the rest.
 
         :param kwargs: no kwargs
 

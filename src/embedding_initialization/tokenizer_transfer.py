@@ -12,7 +12,6 @@ from transformers import (
     RobertaTokenizerFast,
     XLMRobertaTokenizerFast
 )
-from sklearn.metrics.pairwise import cosine_similarity
 from .overlap import get_overlapping_tokens
 from .special_token_mappings import get_bert_special_tokens, roberta_special_tokens, xlm_roberta_special_tokens
 
@@ -29,7 +28,8 @@ class TokenizerTransfer:
             self,
             source_model_name_or_path: str,
             target_tokenizer_name_or_path: str,
-            target_model_path: str = None
+            target_model_path: str = None,
+            **kwargs
     ):
         """
         Class for transferring embeddings from one tokenizer to another.
@@ -54,7 +54,7 @@ class TokenizerTransfer:
 
     def initialize_embeddings(self, **kwargs):
         """
-        Method that initializes the embeddings of a given LM with the source embeddings.
+        Method that initializes the embeddings of a LM with a target tokenizer given a source LM.
 
         :param kwargs: no kwargs
 
@@ -108,7 +108,8 @@ class RandomInitializationTokenizerTransfer(TokenizerTransfer):
             source_model_name_or_path: str,
             target_tokenizer_name_or_path: str,
             target_model_path: str = None,
-            init_method: str = "smart"
+            init_method: str = "smart",
+            **kwargs
     ):
         """
         Class for transferring embeddings from one tokenizer to another using random initialization.
@@ -116,7 +117,7 @@ class RandomInitializationTokenizerTransfer(TokenizerTransfer):
         :param target_tokenizer_name_or_path: Name or path of the target tokenizer
         :param target_model_path: Path to save the transferred model
         """
-        super().__init__(source_model_name_or_path, target_tokenizer_name_or_path, target_model_path)
+        super().__init__(source_model_name_or_path, target_tokenizer_name_or_path, target_model_path, **kwargs)
         self.init_method = init_method
 
     @staticmethod
@@ -137,7 +138,7 @@ class RandomInitializationTokenizerTransfer(TokenizerTransfer):
 
     def initialize_embeddings(self, **kwargs):
         """
-        Method that initializes the embeddings of a given LM with the source embeddings.
+        Method that randomly initializes the embeddings of a LM with a target tokenizer given a source LM.
 
         :param kwargs: no kwargs
 
@@ -182,6 +183,7 @@ class OverlapTokenizerTransfer(RandomInitializationTokenizerTransfer):
             exact_match_all: bool = True,
             match_symbols: bool = False,
             fuzzy_match_all: bool = False,
+            **kwargs
     ):
         """
         Class for transferring embeddings from one tokenizer to another using random initialization.
@@ -192,7 +194,7 @@ class OverlapTokenizerTransfer(RandomInitializationTokenizerTransfer):
         :param match_symbols:
         :param fuzzy_match_all:
         """
-        super().__init__(source_model_name_or_path, target_tokenizer_name_or_path, target_model_path)
+        super().__init__(source_model_name_or_path, target_tokenizer_name_or_path, target_model_path, **kwargs)
         self.exact_match_all = exact_match_all
         self.match_symbols = match_symbols
         self.fuzzy_match_all = fuzzy_match_all
@@ -225,29 +227,29 @@ class OverlapTokenizerTransfer(RandomInitializationTokenizerTransfer):
         if isinstance(self.source_tokenizer, BertTokenizerFast):
             source_tokenizer_special_tokens = get_bert_special_tokens()
         elif isinstance(self.source_tokenizer, RobertaTokenizerFast):
-            source_tokenizer_special_tokens = roberta_special_tokens
+            source_tokenizer_special_tokens = roberta_special_tokens()
         elif isinstance(self.source_tokenizer, XLMRobertaTokenizerFast):
-            source_tokenizer_special_tokens = xlm_roberta_special_tokens
+            source_tokenizer_special_tokens = xlm_roberta_special_tokens()
         else:
             source_tokenizer_special_tokens = None
         if isinstance(self.target_tokenizer, BertTokenizerFast):
             target_tokenizer_special_tokens = get_bert_special_tokens()
         elif isinstance(self.target_tokenizer, RobertaTokenizerFast):
-            target_tokenizer_special_tokens = roberta_special_tokens
+            target_tokenizer_special_tokens = roberta_special_tokens()
         elif isinstance(self.target_tokenizer, XLMRobertaTokenizerFast):
-            target_tokenizer_special_tokens = xlm_roberta_special_tokens
+            target_tokenizer_special_tokens = xlm_roberta_special_tokens()
         else:
             target_tokenizer_special_tokens = None
         copied_special_tokens = []
         if source_tokenizer_special_tokens and target_tokenizer_special_tokens:
-            for target_t in target_tokenizer_special_tokens:
-                if target_t in source_tokenizer_special_tokens:
-                    source_t = source_tokenizer_special_tokens[target_t]
-                    overlapping_token_idx = self.target_token_to_idx[target_t]
-                    target_embeddings[self.target_token_to_idx[target_t]] = self.source_embeddings[
-                        self.source_token_to_idx[source_t]]
+            for target_k, target_v in target_tokenizer_special_tokens.items():
+                if target_k in source_tokenizer_special_tokens:
+                    source_v = source_tokenizer_special_tokens[target_k]
+                    overlapping_token_idx = self.target_token_to_idx[target_v]
+                    target_embeddings[self.target_token_to_idx[target_v]] = self.source_embeddings[
+                        self.source_token_to_idx[source_v]]
                     copied_special_tokens.append(
-                        (target_tokenizer_special_tokens[target_t], source_tokenizer_special_tokens[source_t])
+                        (target_v, source_v)
                     )
                     if overlapping_token_idx not in overlapping_token_indices:
                         overlapping_token_indices.append(overlapping_token_idx)
@@ -260,7 +262,9 @@ class OverlapTokenizerTransfer(RandomInitializationTokenizerTransfer):
 
     def initialize_embeddings(self, **kwargs):
         """
-        Method that initializes the embeddings of a given LM with the source embeddings.
+        Method that initializes the embeddings of a LM with a target tokenizer given a source LM.
+        Leverages overlap between the source vocabulary and the target vocabulary to directly copy source embeddings
+        and randomly initializes the rest.
 
         :param kwargs: no kwargs
 

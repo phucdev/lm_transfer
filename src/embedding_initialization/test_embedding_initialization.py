@@ -1,9 +1,10 @@
 import pytest
 from .tokenizer_transfer import (
     RandomInitializationTokenizerTransfer,
-    OverlapTokenizerTransfer,
-    CLPTokenizerTransfer
+    OverlapTokenizerTransfer
 )
+from .clp_transfer import CLPTokenizerTransfer
+from .fvt import FVTTokenizerTransfer
 
 
 def test_random_embedding_initialization():
@@ -31,4 +32,15 @@ def test_clp_embedding_initialization():
         helper_model_name_or_path=target_model_name
     )
     target_model = transfer_pipeline.transfer()
+    assert target_model is not None
+
+
+def test_fvt_embedding_initialization():
+    source_model_name = "FacebookAI/xlm-roberta-base"
+    target_model_name = "phucdev/vi-spm-culturax-2048"
+    transfer_pipeline = FVTTokenizerTransfer(
+        source_model_name,
+        target_model_name
+    )
+    target_model= transfer_pipeline.transfer()
     assert target_model is not None

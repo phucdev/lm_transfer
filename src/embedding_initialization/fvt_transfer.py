@@ -59,7 +59,7 @@ class FVTTokenizerTransfer(OverlapTokenizerTransfer):
         # Initialize the rest by partitioning the target token into source tokens using the source tokenizer
         # and averaging the source embeddings of tokens in the partition
         if self.missing_tokens:
-            missing_tokens_list = list(self.missing_tokens.keys())
+            missing_tokens_list = [token for token, missing_token_info in self.missing_tokens]
 
             for target_token in tqdm(missing_tokens_list, desc="Initialize target embeddings for missing tokens"):
                 normalized_target_token = re.sub('^(##|Ġ|▁)', '', target_token)

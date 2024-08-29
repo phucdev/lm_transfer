@@ -12,7 +12,7 @@ from transformers import (
     RobertaTokenizerFast,
     XLMRobertaTokenizerFast
 )
-from .overlap import get_overlapping_tokens
+from .overlap_utils import get_overlapping_tokens
 from .special_token_mappings import get_bert_special_tokens, roberta_special_tokens, xlm_roberta_special_tokens
 
 logging.basicConfig(
@@ -190,9 +190,9 @@ class OverlapTokenizerTransfer(RandomInitializationTokenizerTransfer):
         :param source_model_name_or_path:
         :param target_tokenizer_name_or_path:
         :param target_model_path:
-        :param exact_match_all:
-        :param match_symbols:
-        :param fuzzy_match_all:
+        :param exact_match_all: Match all overlapping tokens if they are an exact match. Defaults to True.
+        :param match_symbols: Match overlapping symbolic tokens. Defaults to False.
+        :param fuzzy_match_all: Match all overlapping tokens with fuzzy matching (whitespace and case). Defaults to False.
         """
         super().__init__(source_model_name_or_path, target_tokenizer_name_or_path, target_model_path, **kwargs)
         self.exact_match_all = exact_match_all
@@ -201,19 +201,43 @@ class OverlapTokenizerTransfer(RandomInitializationTokenizerTransfer):
 
         self.overlapping_tokens = None
         self.missing_tokens = None
+        self.fasttext_model = None
 
-    def copy_overlapping_tokens(
-            self, target_embeddings, overlapping_tokens, missing_tokens, return_overlapping_token_indices=True
-    ):
+    def is_very_rare_token(self, token):
+        """
+        We want to filter out some "bad" tokens.
+        These are tokens that are so rare that they did not get an embedding in the fasttext model.
+        If using pretrained word embeddings, these are tokens where no subwords are part of the pretrained word fasttext model.
+        These tokens will be initialized with a random embedding.
+        """
+        if self.fasttext_model is not None:
+            return token not in self.fasttext_model or np.absolute(self.fasttext_model[token]).sum() == 0
+        else:
+            return False
+
+    def copy_overlapping_tokens(self, target_embeddings, return_overlapping_token_indices=True):
+        """
+        Method that copies source embeddings for overlapping tokens to the target embeddings.
+        :param target_embeddings:
+        :param return_overlapping_token_indices:
+        :return:
+        """
         overlapping_tokens_list_source = []
-        overlapping_tokens_list_target = list(overlapping_tokens.keys())
-        for t, overlapping_token in overlapping_tokens.items():
-            overlapping_tokens_list_source.append(overlapping_token.source[0].native_form)
+        overlapping_tokens_list_target = []
+        for token, overlapping_token_info in self.overlapping_tokens:
+            if self.fasttext_model is not None:
+                if self.is_very_rare_token(token):
+                    continue
+                else:
+                    overlapping_token_info.auxiliary_embedding = self.fasttext_model[token]
+            # A token may have multiple source embeddings. We will always use the first one.
+            overlapping_tokens_list_source.append(overlapping_token_info.source[0].native_form)
+            overlapping_tokens_list_target.append(token)
 
-        logger.info(f'{len(overlapping_tokens)=}; {len(missing_tokens)=}')
+        logger.info(f'{len(self.overlapping_tokens)=}; {len(self.missing_tokens)=}')
 
         overlapping_token_indices = []
-        if not overlapping_tokens:
+        if not self.overlapping_tokens:
             raise ValueError('No overlapping tokens found')
         # Set overlapping tokens
         for source_t, target_t in tqdm(zip(overlapping_tokens_list_source, overlapping_tokens_list_target),
@@ -273,17 +297,20 @@ class OverlapTokenizerTransfer(RandomInitializationTokenizerTransfer):
         target_embeddings = super().initialize_embeddings(**kwargs)
 
         # Identify overlapping tokens between the source and target vocabularies
-        self.overlapping_tokens, self.missing_tokens = get_overlapping_tokens(
+        overlapping_tokens, missing_tokens = get_overlapping_tokens(
             target_tokenizer=self.target_tokenizer,
             source_tokenizer=self.source_tokenizer,
             exact_match_all=self.exact_match_all,
             match_symbols=self.match_symbols,
             fuzzy_match_all=self.fuzzy_match_all
         )
+        # Sort to ensure same order every time (especially important when executing on multiple ranks)
+        self.overlapping_tokens = sorted(overlapping_tokens.items(), key=lambda x: x[1].target.id)
+        self.missing_tokens = sorted(missing_tokens.items(), key=lambda x: x[1].target.id)
+        logger.debug(f"Found {len(self.overlapping_tokens)} overlapping tokens.")
+
         # Copy source embeddings for overlapping tokens
-        target_embeddings, overlapping_token_indices = self.copy_overlapping_tokens(
-            target_embeddings, self.overlapping_tokens, self.missing_tokens
-        )
+        target_embeddings, overlapping_token_indices = self.copy_overlapping_tokens(target_embeddings)
 
         logger.info(f"Copied source embeddings for {len(overlapping_token_indices)}/{len(self.target_tokens)} "
                     f"target tokens by leveraging the overlap between the source and the target vocabularies")

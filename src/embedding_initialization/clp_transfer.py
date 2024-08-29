@@ -70,11 +70,12 @@ class CLPTokenizerTransfer(OverlapTokenizerTransfer):
 
         # Initialize the rest using the helper embeddings
         if self.missing_tokens:
-            missing_tokens_list = list(self.missing_tokens.keys())
+            missing_tokens_list = [token for token, missing_token_info in self.missing_tokens]
             overlapping_tokens_list_source = []
-            overlapping_tokens_list_target = list(self.overlapping_tokens.keys())
-            for t, overlapping_token in self.overlapping_tokens.items():
-                overlapping_tokens_list_source.append(overlapping_token.source[0].native_form)
+            overlapping_tokens_list_target = []
+            for token, overlapping_token_info in self.overlapping_tokens:
+                overlapping_tokens_list_source.append(overlapping_token_info.source[0].native_form)
+                overlapping_tokens_list_target.append(token)
             overlapping_tokens_idxs = [self.source_token_to_idx[t] for t in overlapping_tokens_list_source]
             overlapping_token_vecs = self.source_embeddings[overlapping_tokens_idxs, :]
 

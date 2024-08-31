@@ -4,7 +4,7 @@ from .tokenizer_transfer import (
     OverlapTokenizerTransfer
 )
 from .clp_transfer import CLPTokenizerTransfer
-from .fvt import FVTTokenizerTransfer
+from .fvt_transfer import FVTTokenizerTransfer
 
 
 def test_random_embedding_initialization():

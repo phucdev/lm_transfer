@@ -222,30 +222,24 @@ class OverlapTokenizerTransfer(RandomInitializationTokenizerTransfer):
         :param return_overlapping_token_indices:
         :return:
         """
-        overlapping_tokens_list_source = []
-        overlapping_tokens_list_target = []
-        for token, overlapping_token_info in self.overlapping_tokens:
-            if self.fasttext_model is not None:
-                if self.is_very_rare_token(token):
-                    continue
-                else:
-                    overlapping_token_info.auxiliary_embedding = self.fasttext_model[token]
-            # A token may have multiple source embeddings. We will always use the first one.
-            overlapping_tokens_list_source.append(overlapping_token_info.source[0].native_form)
-            overlapping_tokens_list_target.append(token)
-
         logger.info(f'{len(self.overlapping_tokens)=}; {len(self.missing_tokens)=}')
 
         overlapping_token_indices = []
         if not self.overlapping_tokens:
             raise ValueError('No overlapping tokens found')
         # Set overlapping tokens
-        for source_t, target_t in tqdm(zip(overlapping_tokens_list_source, overlapping_tokens_list_target),
-                                       desc="Initialize target embeddings for overlapping tokens"):
-            overlapping_token_idx = self.target_token_to_idx[target_t]
-            target_embeddings[overlapping_token_idx] = self.source_embeddings[self.source_token_to_idx[source_t]]
-            if overlapping_token_idx not in overlapping_token_indices:
-                overlapping_token_indices.append(overlapping_token_idx)
+        for token, overlapping_token_info in tqdm(self.overlapping_tokens,
+                                                  desc="Initialize target embeddings for overlapping tokens"):
+            if self.fasttext_model is not None:
+                if self.is_very_rare_token(token):
+                    continue
+                else:
+                    overlapping_token_info.auxiliary_embedding = self.fasttext_model[token]
+            target_token_idx = overlapping_token_info.target.id
+            source_token_idx = overlapping_token_info.source[0].id
+            target_embeddings[target_token_idx] = self.source_embeddings[source_token_idx]
+            if target_token_idx not in overlapping_token_indices:
+                overlapping_token_indices.append(target_token_idx)
 
         # Copy source embeddings for special tokens
         if isinstance(self.source_tokenizer, BertTokenizerFast):
@@ -269,14 +263,14 @@ class OverlapTokenizerTransfer(RandomInitializationTokenizerTransfer):
             for target_k, target_v in target_tokenizer_special_tokens.items():
                 if target_k in source_tokenizer_special_tokens:
                     source_v = source_tokenizer_special_tokens[target_k]
-                    overlapping_token_idx = self.target_token_to_idx[target_v]
+                    target_token_idx = self.target_token_to_idx[target_v]
                     target_embeddings[self.target_token_to_idx[target_v]] = self.source_embeddings[
                         self.source_token_to_idx[source_v]]
                     copied_special_tokens.append(
                         (target_v, source_v)
                     )
-                    if overlapping_token_idx not in overlapping_token_indices:
-                        overlapping_token_indices.append(overlapping_token_idx)
+                    if target_token_idx not in overlapping_token_indices:
+                        overlapping_token_indices.append(target_token_idx)
             logger.info(f'Copied embeddings for special tokens: {copied_special_tokens}')
 
         if return_overlapping_token_indices:

@@ -70,17 +70,21 @@ class CLPTokenizerTransfer(OverlapTokenizerTransfer):
 
         # Initialize the rest using the helper embeddings
         if self.missing_tokens:
-            missing_tokens_list = [token for token, missing_token_info in self.missing_tokens]
-            overlapping_tokens_list_source = []
-            overlapping_tokens_list_target = []
+            missing_tokens_idxs = [missing_token_info.target.id for token, missing_token_info in self.missing_tokens]
+            overlapping_tokens_source_idxs = []
+            overlapping_tokens_target_idxs = []
             for token, overlapping_token_info in self.overlapping_tokens:
-                overlapping_tokens_list_source.append(overlapping_token_info.source[0].native_form)
-                overlapping_tokens_list_target.append(token)
-            overlapping_tokens_idxs = [self.source_token_to_idx[t] for t in overlapping_tokens_list_source]
+                target_token_idx = overlapping_token_info.target.id
+                source_token_idx = overlapping_token_info.source[0].id
+                overlapping_tokens_source_idxs.append(source_token_idx)
+                overlapping_tokens_target_idxs.append(target_token_idx)
+            overlapping_tokens_idxs = [
+                overlapping_token_info.source[0].id for t, overlapping_token_info in self.overlapping_tokens
+            ]
             overlapping_token_vecs = self.source_embeddings[overlapping_tokens_idxs, :]
 
-            helper_missing_tokens_vecs = self.helper_embeddings[[self.helper_token_to_idx[t] for t in missing_tokens_list], :]
-            helper_overlapping_token_vecs = self.helper_embeddings[[self.helper_token_to_idx[t] for t in overlapping_tokens_list_target], :]
+            helper_missing_tokens_vecs = self.helper_embeddings[missing_tokens_idxs, :]
+            helper_overlapping_token_vecs = self.helper_embeddings[overlapping_tokens_target_idxs, :]
 
             # Calculate similarities for each pair of missing and overlapping token embeddings
             sims = cosine_similarity(helper_missing_tokens_vecs, helper_overlapping_token_vecs)
@@ -88,12 +92,12 @@ class CLPTokenizerTransfer(OverlapTokenizerTransfer):
             # similar = 1 => high weight
             # dissimilar = 0 => low weight
 
-            for ti, t in enumerate(tqdm(missing_tokens_list, desc="Initialize target embeddings for missing tokens")):
+            for ti, helper_token_idx in enumerate(tqdm(missing_tokens_idxs, desc="Initialize target embeddings for missing tokens")):
                 # distances to overlapping tokens
                 token_sims = sims[ti]
                 norm_sims = token_sims / token_sims.sum()
 
                 # weighted average of overlapping token embeddings with weight from similarity in helper token embedding space
                 target_vec = np.average(overlapping_token_vecs, axis=0, weights=norm_sims)
-                target_embeddings[self.helper_token_to_idx[t]] = target_vec
+                target_embeddings[helper_token_idx] = target_vec
         return target_embeddings

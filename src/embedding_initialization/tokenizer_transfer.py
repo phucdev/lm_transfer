@@ -232,6 +232,7 @@ class OverlapTokenizerTransfer(RandomInitializationTokenizerTransfer):
                                                   desc="Initialize target embeddings for overlapping tokens"):
             if self.fasttext_model is not None:
                 if self.is_very_rare_token(token):
+                    overlapping_token_info.use_for_focus = False
                     continue
                 else:
                     overlapping_token_info.auxiliary_embedding = self.fasttext_model[token]

@@ -23,16 +23,16 @@ import multiprocessing
 import os
 import tempfile
 import logging
+import fasttext
+
 from pathlib import Path
 from typing import Optional
-
-import fasttext
 from datasets.fingerprint import Hasher
 from datasets.load import load_dataset
 from tqdm import tqdm
 from transformers import PreTrainedTokenizer
 
-from download_utils import download, gunzip
+from ..utils.download_utils import download, gunzip
 
 CACHE_DIR = (Path(os.getenv("XDG_CACHE_HOME", "~/.cache")) / "deepfocus").expanduser().resolve()
 
@@ -58,6 +58,7 @@ def train_fasttext(
         target_tokenizer (PreTrainedTokenizer, optional): The tokenizer to apply to the provided text file before training the fasttext model on the data.
         epochs (int, optional): The number of training epochs for the fasttext model.
         dim (int, optional): The embedding dimension for the fasttext model.
+        min_count (int, optional): The minimum count of a token in the text data to be included in the fasttext model.
         processes (int, optional): The number of processes to use for parallelization. Defaults to `multiprocessing.cpu_count()`.
         cache_tokenized_text(bool, optional): Whether to cache the tokenized text data. Defaults to False.
 

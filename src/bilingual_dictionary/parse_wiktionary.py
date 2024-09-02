@@ -44,7 +44,8 @@ def parse_wiktionary_dump(dump_path, languages, out_directory):
     # https://en.wiktionary.org/wiki/Wiktionary:Translations
     # https://en.wiktionary.org/wiki/Template:trans-top
     gloss_regex = re.Regex(
-        r"(?<!{{checktrans-top}}\n){{trans-(?:top|top-also)\|?(?:id=[^|]*\|)?(?:[^|]*\|)?(?P<gloss>[^}|]*)}}\s*(?P<translations>.*?)(?={{trans-bottom|\Z)",
+        r"(?<!{{checktrans-top}}\n){{trans-(?:top|top-also)\|?(?:id=[^|]*\|)?(?:[^|]*\|)?(?P<gloss>[^}|]*)}}\s*("
+        r"?P<translations>.*?)(?={{trans-bottom|\Z)",
         re.DOTALL
     )
     # TODO: we ignore trans-see for now, handling trans-see would require additional processing steps

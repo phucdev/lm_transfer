@@ -17,6 +17,8 @@ And: https://github.com/facebookresearch/fastText/blob/master/alignment/utils.py
 
 import io
 import collections
+import json
+
 import numpy as np
 from gensim.models import KeyedVectors
 import math
@@ -564,3 +566,18 @@ def compute_csls_accuracy(x_src, x_tgt, lexicon, lexicon_size=-1, k=10, bsz=1024
         if nn[k] in lexicon[idx_src[k]]:
             correct += 1.0
     return correct / lexicon_size
+
+
+class NpEncoder(json.JSONEncoder):
+    """
+    JSON Encoder that can handle numpy types
+    """
+
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super(NpEncoder, self).default(obj)

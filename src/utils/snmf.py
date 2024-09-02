@@ -19,7 +19,7 @@ from scipy.special import factorial
 _EPS = np.finfo(float).eps
 
 
-def eighk(M, k=0):
+def eighk(m, k=0):
     """ Returns ordered eigenvectors of a squared matrix. Too low eigenvectors
     are ignored. Optionally only the first k vectors/values are returned.
 
@@ -34,7 +34,7 @@ def eighk(M, k=0):
     v : [:k] eigenvectors
 
     """
-    values, vectors = eigh(M)
+    values, vectors = eigh(m)
 
     # get rid of too low eigenvalues
     s = np.where(values > _EPS)[0]
@@ -66,12 +66,12 @@ def cmdet(d):
     -------
     V - volume of the simplex given by d
     """
-    D = np.ones((d.shape[0] + 1, d.shape[0] + 1))
-    D[0, 0] = 0.0
-    D[1:, 1:] = d ** 2
-    j = np.float32(D.shape[0] - 2)
+    d = np.ones((d.shape[0] + 1, d.shape[0] + 1))
+    d[0, 0] = 0.0
+    d[1:, 1:] = d ** 2
+    j = np.float32(d.shape[0] - 2)
     f1 = (-1.0) ** (j + 1) / ((2 ** j) * ((factorial(j)) ** 2))
-    cmd = f1 * np.linalg.det(D)
+    cmd = f1 * np.linalg.det(d)
 
     # sometimes, for very small values, "cmd" might be negative, thus we take
     # the absolute value
@@ -90,10 +90,10 @@ def simplex(d):
     V - volume of the Simplex spanned by d
     """
     # compute the simplex volume using coordinates
-    D = np.ones((d.shape[0] + 1, d.shape[1]))
-    D[1:, :] = d
-    V = np.abs(np.linalg.det(D)) / factorial(d.shape[1] - 1)
-    return V
+    d = np.ones((d.shape[0] + 1, d.shape[1]))
+    d[1:, :] = d
+    v = np.abs(np.linalg.det(d)) / factorial(d.shape[1] - 1)
+    return v
 
 
 class PyMFBase:
@@ -130,6 +130,8 @@ class PyMFBase:
 
         # initialize H and W to random values
         self._data_dimension, self._num_samples = self.data.shape
+
+        self.ferr = None
 
     def residual(self):
         """ Returns the residual in % of the total amount of data
@@ -226,9 +228,9 @@ class PyMFBase:
 
         Updated Values
         --------------
-        .W : updated values for W.
-        .H : updated values for H.
-        .ferr : Frobenius norm |data-WH| for each iteration.
+        self.W : updated values for W.
+        self.H : updated values for H.
+        self.ferr : Frobenius norm |data-WH| for each iteration.
         """
 
         if show_progress:
@@ -262,7 +264,7 @@ class PyMFBase:
             else:
                 self._logger.info('Iteration: (%s/%s)' % (i + 1, niter))
 
-            # check if the err is not changing anymore
+            # check if the error is not changing anymore
             if i > 1 and compute_err:
                 if self._converged(i):
                     # adjust the error measure
@@ -313,12 +315,15 @@ class SNMF(PyMFBase):
 
     The result is a set of coefficients snmf_mdl.H, s.t. data = W * snmf_mdl.H.
     """
+    def __init__(self, data, num_bases=4, **kwargs):
+        super().__init__(self, data=data, num_bases=num_bases, **kwargs)
+
 
     def _update_w(self):
         # In Ding et al. (2008) this is F = XG(G^TG)^-1
-        W1 = np.dot(self.data[:, :], self.H.T)
-        W2 = np.dot(self.H, self.H.T)
-        self.W = np.dot(W1, np.linalg.inv(W2))
+        w1 = np.dot(self.data[:, :], self.H.T)
+        w2 = np.dot(self.H, self.H.T)
+        self.W = np.dot(w1, np.linalg.inv(w2))
 
     def _update_h(self):
         # Corresponds to the update of G while fixing F in Ding et al. (2008)
@@ -328,19 +333,19 @@ class SNMF(PyMFBase):
         def separate_negative(m):
             return (np.abs(m) - m) / 2.0
 
-        XW = np.dot(self.data[:, :].T, self.W)
+        xw = np.dot(self.data[:, :].T, self.W)
 
-        WW = np.dot(self.W.T, self.W)
-        WW_pos = separate_positive(WW)
-        WW_neg = separate_negative(WW)
+        ww = np.dot(self.W.T, self.W)
+        ww_pos = separate_positive(ww)
+        ww_neg = separate_negative(ww)
 
-        XW_pos = separate_positive(XW)
-        H1 = (XW_pos + np.dot(self.H.T, WW_neg)).T
+        xw_pos = separate_positive(xw)
+        h1 = (xw_pos + np.dot(self.H.T, ww_neg)).T
 
-        XW_neg = separate_negative(XW)
-        H2 = (XW_neg + np.dot(self.H.T, WW_pos)).T + 10 ** -9
+        xw_neg = separate_negative(xw)
+        h2 = (xw_neg + np.dot(self.H.T, ww_pos)).T + 10 ** -9
 
-        self.H *= np.sqrt(H1 / H2)
+        self.H *= np.sqrt(h1 / h2)
 
 
 def _test():

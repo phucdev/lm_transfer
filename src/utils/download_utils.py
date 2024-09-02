@@ -24,10 +24,11 @@ From the paper:
 
 import functools
 import shutil
-from pathlib import Path
 import requests
-from tqdm.auto import tqdm
 import gzip
+
+from pathlib import Path
+from tqdm.auto import tqdm
 
 
 def gunzip(path):

@@ -12,20 +12,20 @@ from transformers import AutoTokenizer
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset_name", type=str, default="oscar")
-    parser.add_argument("--dataset_config_name", type=str, default="unshuffled_deduplicated_de")
-    parser.add_argument("--output_dir", type=str, default="data/oscar_de")
-    parser.add_argument("--subsample_size_mb", type=int, default=1024)
+    parser.add_argument("--dataset_name", type=str, default="uonlp/CulturaX")
+    parser.add_argument("--dataset_config_name", type=str, default="vi")
+    parser.add_argument("--output_dir", type=str, default="data/culturax_vi")
+    parser.add_argument("--subsample_size_mb", type=int, default=4096)
     parser.add_argument("--valid_percentage", type=int, default=10)
-    parser.add_argument("--skip_download_and_split",  default=False, action='store_true')
-    parser.add_argument("--preprocess_dataset", default=False, action='store_true')
-    parser.add_argument("--model_name_or_path", type=str, default="models/pythia-410m-clp-german")
+    parser.add_argument("--skip_download_and_split",  default=False, action="store_true")
+    parser.add_argument("--preprocess_dataset", default=False, action="store_true")
+    parser.add_argument("--model_name_or_path", type=str, default=None)
     parser.add_argument("--block_size", type=int, default=1024)
     parser.add_argument("--preprocessing_num_workers", type=int, default=None)
-    parser.add_argument("--only_keep_text", default=False, action='store_true')
-    parser.add_argument("--quality_warning_filter", default=False, action='store_true',
+    parser.add_argument("--only_keep_text", default=False, action="store_true")
+    parser.add_argument("--quality_warning_filter", default=False, action="store_true",
                         help="Filter out documents with quality warnings from OSCAR")
-    parser.add_argument("--oscar_2301_filter", default=False, action='store_true',
+    parser.add_argument("--oscar_2301_filter", default=False, action="store_true",
                         help="Only use OSCAR 23.01 documents from CulturaX")
     args = parser.parse_args()
     return args
@@ -43,19 +43,28 @@ def get_size(obj):
     return sys.getsizeof(obj)
 
 
-def claude_extract():
-    culturax = datasets.load_dataset("uonlp/CulturaX", "vi", split="train", streaming=True)
-    num_samples = 0
-    total_size = 0
-    target_size = 4 * 1024 * 1024 * 1024  # 4GB in bytes
+def create_split(file_path, dataset_iter, subsample_size_mb, args):
+    with open(file_path, "w") as f:
+        size = 0
+        bar = tqdm(total=subsample_size_mb)
 
-    for example in culturax:
-        num_samples += 1
-        total_size += get_size(example)
-        if total_size >= target_size:
-            break
+        while size < subsample_size_mb:
+            entry = next(dataset_iter)
 
-    print(f"Collected {num_samples} examples, total size: {total_size / (1024*1024*1024):.2f} GB")
+            if skip_entry(entry, args):
+                continue
+
+            entry_size = len(entry["text"].encode("utf-8"))
+            # entry_size = get_size(entry["text"])
+            size += entry_size
+
+            bar.update(entry_size)
+
+            if args.only_keep_text:
+                entry = {
+                    "text": entry["text"],
+                }
+            f.write(f"{json.dumps(entry, ensure_ascii=False)}\n")
 
 
 def prepare_dataset():
@@ -73,52 +82,13 @@ def prepare_dataset():
         )
         dataset_iter = iter(dataset)
 
-        with open(output_dir / "train.json", "w") as f:
-            size = 0
-            bar = tqdm(total=subsample_size)
+        create_split(output_dir / "train.jsonl", dataset_iter, subsample_size, args)
+        create_split(output_dir / "valid.jsonl", dataset_iter, subsample_size * args.valid_percentage / 100, args)
 
-            while size < subsample_size:
-                entry = next(dataset_iter)
-
-                if skip_entry(entry, args):
-                    continue
-
-                entry_size = len(entry["text"].encode("utf-8"))
-                size += entry_size
-
-                bar.update(entry_size)
-
-                if args.only_keep_text:
-                    entry = {
-                        "text": entry["text"],
-                    }
-                f.write(f"{json.dumps(entry)}\n")
-
-        with open(output_dir / "valid.json", "w") as f:
-            validation_sample_size = subsample_size * args.valid_percentage / 100
-            size = 0
-            bar = tqdm(total=validation_sample_size)
-
-            while size < validation_sample_size:
-                entry = next(dataset_iter)
-
-                if skip_entry(entry, args):
-                    continue
-
-                entry_size = len(entry["text"].encode("utf-8"))
-                size += entry_size
-
-                bar.update(entry_size)
-
-                if args.only_keep_text:
-                    entry = {
-                        "text": entry["text"],
-                    }
-                f.write(f"{json.dumps(entry)}\n")
     if args.preprocess_dataset:
         preprocess_dataset(
-            train_file=output_dir / "train.json",
-            validation_file=output_dir / "valid.json",
+            train_file=output_dir / "train.jsonl",
+            validation_file=output_dir / "valid.jsonl",
             save_preprocessed_dataset_path=output_dir / "preprocessed",
             model_name_or_path=args.model_name_or_path,
             block_size=args.block_size,

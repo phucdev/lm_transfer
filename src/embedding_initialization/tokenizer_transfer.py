@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 import torch
 import logging
 import math
@@ -52,6 +55,23 @@ class TokenizerTransfer:
         self.target_tokens = self.target_tokenizer.get_vocab()
         self.target_token_to_idx = {t: i for t, i in self.target_tokenizer.get_vocab().items()}
 
+        # Information about the transfer
+        self.overlap_based_initialized_tokens = 0
+        self.cleverly_initialized_tokens = 0
+
+    def save_parameters_to_dict(self):
+        parameters_dict = {
+            "source_model_name_or_path": self.source_model_name_or_path,
+            "target_tokenizer_name_or_path": self.target_tokenizer_name,
+            "target_model_path": self.target_model_path,
+            "source_tokenizer_vocab_size": len(self.source_tokenizer.get_vocab()),
+            "target_tokenizer_vocab_size": len(self.target_tokenizer.get_vocab()),
+            "source_embeddings_shape": self.source_embeddings.shape,
+            "cleverly_initialized_tokens": self.cleverly_initialized_tokens,
+            "overlap_based_initialized_tokens": self.overlap_based_initialized_tokens
+        }
+        return parameters_dict
+
     def initialize_embeddings(self, **kwargs):
         """
         Method that initializes the embeddings of a LM with a target tokenizer given a source LM.
@@ -99,6 +119,9 @@ class TokenizerTransfer:
         if self.target_model_path:
             self.target_tokenizer.save_pretrained(self.target_model_path)
             target_model.save_pretrained(self.target_model_path)
+            with open(Path(self.target_model_path) / "transfer_information.json", "w") as f:
+                information_dict = self.save_parameters_to_dict()
+                json.dump(information_dict, f, indent=2)
         return target_model
 
 
@@ -120,6 +143,11 @@ class RandomInitializationTokenizerTransfer(TokenizerTransfer):
         super().__init__(source_model_name_or_path, target_tokenizer_name_or_path, target_model_path, **kwargs)
         self.init_method = init_method
 
+    def save_parameters_to_dict(self):
+        parameters_dict = super().save_parameters_to_dict()
+        parameters_dict["init_method"] = self.init_method
+        return parameters_dict
+
     @staticmethod
     def xavier_normal(tensor):
         """Fills the input Tensor with values according to the method described in Understanding the difficulty of
@@ -136,14 +164,7 @@ class RandomInitializationTokenizerTransfer(TokenizerTransfer):
         std = math.sqrt(2 / (5 * dim))
         return torch.nn.init.normal_(tensor, mean=0.0, std=std)
 
-    def initialize_embeddings(self, **kwargs):
-        """
-        Method that randomly initializes the embeddings of a LM with a target tokenizer given a source LM.
-
-        :param kwargs: no kwargs
-
-        :return: The initialized embedding matrix
-        """
+    def initialize_random_embeddings(self):
         if self.init_method == "smart":
             target_embeddings = np.random.normal(
                 np.mean(self.source_embeddings, axis=0),
@@ -154,6 +175,7 @@ class RandomInitializationTokenizerTransfer(TokenizerTransfer):
                 )
             )
         elif self.init_method == "normal":
+            # Optional: RAMEN uses a mean=0 and std=emb_dim ** -0.5
             target_embeddings = np.random.normal(
                 size=(len(self.target_tokens),
                 self.source_embeddings.shape[1])
@@ -171,6 +193,17 @@ class RandomInitializationTokenizerTransfer(TokenizerTransfer):
             ).numpy()
         else:
             raise ValueError("Invalid initialization method")
+        return target_embeddings
+
+    def initialize_embeddings(self, **kwargs):
+        """
+        Method that randomly initializes the embeddings of a LM with a target tokenizer given a source LM.
+
+        :param kwargs: no kwargs
+
+        :return: The initialized embedding matrix
+        """
+        target_embeddings = self.initialize_random_embeddings()
         return target_embeddings
 
 
@@ -203,6 +236,13 @@ class OverlapTokenizerTransfer(RandomInitializationTokenizerTransfer):
         self.missing_tokens = None
         self.fasttext_model = None
 
+    def save_parameters_to_dict(self):
+        parameters_dict = super().save_parameters_to_dict()
+        parameters_dict["exact_match_all"] = self.exact_match_all
+        parameters_dict["match_symbols"] = self.match_symbols
+        parameters_dict["fuzzy_match_all"] = self.fuzzy_match_all
+        return parameters_dict
+
     def is_very_rare_token(self, token):
         """
         We want to filter out some "bad" tokens.
@@ -214,6 +254,21 @@ class OverlapTokenizerTransfer(RandomInitializationTokenizerTransfer):
             return token not in self.fasttext_model or np.absolute(self.fasttext_model[token]).sum() == 0
         else:
             return False
+
+    def get_overlapping_tokens(self):
+        # Identify overlapping tokens between the source and target vocabularies
+        overlapping_tokens, missing_tokens = get_overlapping_tokens(
+            target_tokenizer=self.target_tokenizer,
+            source_tokenizer=self.source_tokenizer,
+            exact_match_all=self.exact_match_all,
+            match_symbols=self.match_symbols,
+            fuzzy_match_all=self.fuzzy_match_all
+        )
+        # Sort to ensure same order every time (especially important when executing on multiple ranks)
+        overlapping_tokens = sorted(overlapping_tokens.items(), key=lambda x: x[1].target.id)
+        missing_tokens = sorted(missing_tokens.items(), key=lambda x: x[1].target.id)
+        logger.debug(f"Found {len(overlapping_tokens)} overlapping tokens.")
+        return overlapping_tokens, missing_tokens
 
     def copy_overlapping_tokens(self, target_embeddings, return_overlapping_token_indices=True):
         """
@@ -242,7 +297,13 @@ class OverlapTokenizerTransfer(RandomInitializationTokenizerTransfer):
             if target_token_idx not in overlapping_token_indices:
                 overlapping_token_indices.append(target_token_idx)
 
-        # Copy source embeddings for special tokens
+        if return_overlapping_token_indices:
+            return target_embeddings, overlapping_token_indices
+        else:
+            return target_embeddings
+
+    def copy_special_tokens(self, target_embeddings, return_overlapping_token_indices=True):
+        overlapping_token_indices = []
         if isinstance(self.source_tokenizer, BertTokenizerFast):
             source_tokenizer_special_tokens = get_bert_special_tokens()
         elif isinstance(self.source_tokenizer, RobertaTokenizerFast):
@@ -289,25 +350,19 @@ class OverlapTokenizerTransfer(RandomInitializationTokenizerTransfer):
 
         :return: The initialized embedding matrix
         """
-        target_embeddings = super().initialize_embeddings(**kwargs)
+        target_embeddings = self.initialize_random_embeddings()
 
-        # Identify overlapping tokens between the source and target vocabularies
-        overlapping_tokens, missing_tokens = get_overlapping_tokens(
-            target_tokenizer=self.target_tokenizer,
-            source_tokenizer=self.source_tokenizer,
-            exact_match_all=self.exact_match_all,
-            match_symbols=self.match_symbols,
-            fuzzy_match_all=self.fuzzy_match_all
-        )
-        # Sort to ensure same order every time (especially important when executing on multiple ranks)
-        self.overlapping_tokens = sorted(overlapping_tokens.items(), key=lambda x: x[1].target.id)
-        self.missing_tokens = sorted(missing_tokens.items(), key=lambda x: x[1].target.id)
-        logger.debug(f"Found {len(self.overlapping_tokens)} overlapping tokens.")
-
+        # Get overlapping tokens and missing tokens
+        self.overlapping_tokens, self.missing_tokens = self.get_overlapping_tokens()
         # Copy source embeddings for overlapping tokens
         target_embeddings, overlapping_token_indices = self.copy_overlapping_tokens(target_embeddings)
+        target_embeddings, overlapping_special_token_indices = self.copy_special_tokens(target_embeddings)
+        for special_token_idx in overlapping_special_token_indices:
+            if special_token_idx not in overlapping_token_indices:
+                overlapping_token_indices.append(special_token_idx)
 
         logger.info(f"Copied source embeddings for {len(overlapping_token_indices)}/{len(self.target_tokens)} "
                     f"target tokens by leveraging the overlap between the source and the target vocabularies")
+        self.cleverly_initialized_tokens = len(overlapping_token_indices)
 
         return target_embeddings

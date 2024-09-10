@@ -48,11 +48,18 @@ class FVTTokenizerTransfer(OverlapTokenizerTransfer):
     def initialize_embeddings(self, **kwargs):
         """
         Method that initializes the embeddings of a given LM with the source embeddings.
+        For target tokens that exist in the source vocabulary, the embeddings are copied from the source model.
+        The rest are tokenized using the source tokenizer and the corresponding source embeddings are averaged.
+        Compared to the original implementation we use the matching strategy of FOCUS (Dobler & de Melo, 2023) to
+        find overlapping tokens between the source and target vocabularies.
+        This involves canonicalizing the tokens before matching them.
+        Another difference is that we also copy the embeddings of the special tokens from the source model.
 
         :param kwargs: no kwargs
 
         :return: The initialized embedding matrix
         """
+        # Random initialization + copy the embeddings of the overlapping tokens (and special tokens)
         target_embeddings = super().initialize_embeddings(**kwargs)
         ngram_vocab = self.target_tokenizer.ngram_vocab if hasattr(self.target_tokenizer, 'ngram_vocab') else {}
 
@@ -72,5 +79,6 @@ class FVTTokenizerTransfer(OverlapTokenizerTransfer):
                         normalized_target_token, add_special_tokens=False, return_tensors='pt'
                     )["input_ids"][0]
                 target_token_idx = self.target_token_to_idx[target_token]
+                # TODO instead of averaging, we could use some other method for aggregating the embeddings
                 target_embeddings[target_token_idx] = np.mean(self.source_embeddings[partition_token_idxs], axis=0)
         return target_embeddings

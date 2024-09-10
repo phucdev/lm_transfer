@@ -26,21 +26,26 @@ import functools
 import shutil
 import requests
 import gzip
+import zipfile
 
 from pathlib import Path
 from tqdm.auto import tqdm
 
 
-def gunzip(path):
+def decompress_archive(path, output_path=None):
     path = Path(path)
 
-    assert path.suffix == ".gz"
+    new_path = output_path if output_path else path.with_suffix("")
 
-    new_path = path.with_suffix("")
-
-    with gzip.open(path, "rb") as f_in:
-        with open(new_path, "wb") as f_out:
-            shutil.copyfileobj(f_in, f_out)
+    if path.suffix == ".zip":
+        with zipfile.ZipFile(path, "r") as zip_ref:
+            zip_ref.extractall(new_path)
+    elif path.suffix == ".gz":
+        with gzip.open(path, "rb") as f_in:
+            with open(new_path, "wb") as f_out:
+                shutil.copyfileobj(f_in, f_out)
+    else:
+        raise ValueError(f"Unsupported archive type: {path.suffix}")
 
     path.unlink()
     return new_path

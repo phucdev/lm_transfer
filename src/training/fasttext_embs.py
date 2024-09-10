@@ -32,7 +32,7 @@ from datasets.load import load_dataset
 from tqdm import tqdm
 from transformers import PreTrainedTokenizer
 
-from ..utils.download_utils import download, gunzip
+from ..utils.download_utils import download, decompress_archive
 
 CACHE_DIR = (Path(os.getenv("XDG_CACHE_HOME", "~/.cache")) / "deepfocus").expanduser().resolve()
 
@@ -88,6 +88,9 @@ def train_fasttext(
             dataset = load_dataset("json", data_files=text_path, split="train")
         else:
             raise ValueError(f"Unsupported file format: {text_path}")
+        # TODO that's they FOCUS does things, where they tokenize the text using the target tokenizer
+        #  and then join them together with spaces. In WECHSEL they use NLTK's Punkt tokenizer.
+        #  We can probably keep it like this because we are not training new FastText embeddings for WECHSEL.
         dataset = dataset.map(
             lambda sample: {"text": " ".join([token for token in target_tokenizer.tokenize(sample["text"])])},
             num_proc=processes,
@@ -145,7 +148,48 @@ def download_pretrained_fasttext_word_embs(identifier: str, verbose=True):
                 CACHE_DIR / "pretrained_fasttext" / f"cc.{identifier}.300.bin.gz",
                 verbose=verbose,
             )
-            path = gunzip(path)
+            path = decompress_archive(path)
+
+    return fasttext.load_model(str(path))
+
+
+def load_embeddings(identifier: str, verbose=True, aligned=False):
+    """
+    Utility function to download and cache embeddings from https://fasttext.cc.
+
+    Args:
+        identifier: 2-letter language code or path to a fasttext model.
+        verbose: Whether to print download progress.
+        aligned: Whether to download aligned embeddings.
+
+    Returns:
+        fastText model loaded from https://fasttext.cc/docs/en/crawl-vectors.html.
+    """
+    if os.path.exists(identifier):
+        path = Path(identifier)
+    else:
+        logging.info(
+            f"Identifier '{identifier}' does not seem to be a path (file does not exist). Interpreting as language code."
+        )
+        if aligned:
+            path = CACHE_DIR / "pretrained_fasttext" / f"wiki.{identifier}.align.vec"
+
+            if not path.exists():
+                path = download(
+                    f"https://dl.fbaipublicfiles.com/fasttext/vectors-aligned/wiki.{identifier}.align.vec",
+                    CACHE_DIR / "pretrained_fasttext" / f"wiki.{identifier}.align.vec",
+                    verbose=verbose,
+                )
+        else:
+            path = CACHE_DIR / "pretrained_fasttext" / f"cc.{identifier}.300.bin"
+
+            if not path.exists():
+                path = download(
+                    f"https://dl.fbaipublicfiles.com/fasttext/vectors-crawl/cc.{identifier}.300.bin.gz",
+                    CACHE_DIR / "pretrained_fasttext" / f"cc.{identifier}.300.bin.gz",
+                    verbose=verbose,
+                )
+                path = decompress_archive(path)
 
     return fasttext.load_model(str(path))
 

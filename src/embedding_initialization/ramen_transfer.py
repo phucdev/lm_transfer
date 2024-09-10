@@ -1,6 +1,5 @@
 import logging
 import subprocess
-import torch
 import os
 import numpy as np
 
@@ -8,7 +7,7 @@ from tqdm import tqdm
 from pathlib import Path
 from collections import defaultdict
 from .tokenizer_transfer import RandomInitializationTokenizerTransfer
-from ..utils.download_utils import download, gunzip
+from ..utils.download_utils import download, decompress_archive
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
@@ -23,10 +22,11 @@ class RamenTokenizerTransfer(RandomInitializationTokenizerTransfer):
             self,
             source_model_name_or_path: str,
             target_tokenizer_name_or_path: str,
+            aligned_data_path: str,
+            source_language_identifier: str,
+            target_language_identifier: str,
             target_model_path: str = None,
-            aligned_data_path: str = None,
-            source_language: str = None,
-            target_language: str = None,
+            corpus: str = "OpenSubtitles",
             **kwargs
     ):
         """
@@ -56,13 +56,32 @@ class RamenTokenizerTransfer(RandomInitializationTokenizerTransfer):
 
         :param source_model_name_or_path:
         :param target_tokenizer_name_or_path:
-        :param target_model_path:
         :param aligned_data_path: Path to the aligned data file (parallel data aligned with tools like fast_align)
+        :param source_language_identifier: Source language identifier, e.g. en
+        :param target_language_identifier: Target language identifier, e.g. vi
+        :param target_model_path:
+        :param corpus: Name of the corpus to download parallel data from, e.g. OpenSubtitles or CCMatrix
         """
         super().__init__(source_model_name_or_path, target_tokenizer_name_or_path, target_model_path, **kwargs)
         self.aligned_data_path = aligned_data_path
-        self.source_language = source_language
-        self.target_language = target_language
+        self.source_language_identifier = source_language_identifier
+        self.target_language_identifier = target_language_identifier
+        self.corpus = corpus
+        
+    def save_parameters_to_dict(self):
+        """
+        Method to save the parameters of the class to a dictionary.
+
+        :return: A dictionary containing the parameters of the class
+        """
+        params = super().save_parameters_to_dict()
+        params.update({
+            "aligned_data_path": self.aligned_data_path,
+            "source_language_identifier": self.source_language_identifier,
+            "target_language_identifier": self.target_language_identifier,
+            "corpus": self.corpus
+        })
+        return params
 
     @staticmethod
     def get_parallel_data(source_language, target_language, data_path, corpus="OpenSubtitles"):
@@ -70,31 +89,30 @@ class RamenTokenizerTransfer(RandomInitializationTokenizerTransfer):
         Method to download parallel data from OPUS for a given source and target language.
 
         :param source_language: Source language identifier, e.g. en
-        :param target_language: Target language identifier, e.g. de
+        :param target_language: Target language identifier, e.g. vi
         :param data_path: Path to save the downloaded data
         :param corpus: Name of the corpus to download data from, e.g. OpenSubtitles or CCMatrix
         """
         data_path = Path(data_path)
         data_path.parent.mkdir(parents=True, exist_ok=True)
         if corpus == "OpenSubtitles":
-            base_link = f"https://object.pouta.csc.fi/OPUS-OpenSubtitles/v2018/mono/"
+            base_link = f"https://object.pouta.csc.fi/OPUS-OpenSubtitles/v2018/moses/"
         elif corpus == "CCMatrix":
-            base_link = f"https://object.pouta.csc.fi/OPUS-CCMatrix/v1/mono/"
+            base_link = f"https://object.pouta.csc.fi/OPUS-CCMatrix/v1/moses/"
         elif corpus == "NLLB":
-            base_link = f"https://object.pouta.csc.fi/OPUS-NLLB/v1/mono/"
+            base_link = f"https://object.pouta.csc.fi/OPUS-NLLB/v1/moses/"
         elif corpus == "CCAligned":
-            base_link = f"https://object.pouta.csc.fi/OPUS-CCAligned/v1/mono/"
+            base_link = f"https://object.pouta.csc.fi/OPUS-CCAligned/v1/moses/"
         elif corpus == "WikiMatrix":
-            base_link = f"https://object.pouta.csc.fi/OPUS-WikiMatrix/v1/mono/"
+            base_link = f"https://object.pouta.csc.fi/OPUS-WikiMatrix/v1/moses/"
         else:
-            # This might fail and result in a RunTime error
-            base_link = f"https://object.pouta.csc.fi/OPUS-{corpus}/v1/mono/"
-        download(f"{base_link}{source_language}.txt.gz",
-                 data_path.joinpath(f"{source_language}.txt.gz"))
-        download(f"https://object.pouta.csc.fi/OPUS-OpenSubtitles/v2018/mono/{target_language}.txt.gz",
-                    data_path.joinpath(f"{target_language}.txt.gz"))
-        gunzip(data_path.joinpath(f"{source_language}.txt.gz"))
-        gunzip(data_path.joinpath(f"{target_language}.txt.gz"))
+            # This might fail and result in a RunTime error if the base_link is different for the corpus
+            base_link = f"https://object.pouta.csc.fi/OPUS-{corpus}/v1/moses/"
+        language_pair = f"{source_language}-{target_language}"
+        download(f"{base_link}{language_pair}.txt.zip",
+                 data_path.joinpath(f"{language_pair}.txt.zip"))
+        decompress_archive(data_path.joinpath(f"{language_pair}.txt.zip"),
+                           output_path=Path(data_path).joinpath(f"{language_pair}"))
         logger.info(f"Downloaded parallel data for {source_language} and {target_language} to {data_path}")
 
     def process_batch(self, source_batch, target_batch):
@@ -222,13 +240,23 @@ class RamenTokenizerTransfer(RandomInitializationTokenizerTransfer):
         :return: The initialized embedding matrix
         """
         target_embeddings = super().initialize_embeddings(**kwargs)
-
-        self.get_parallel_data(self.source_language, self.target_language, self.aligned_data_path)
+        Path(self.aligned_data_path).mkdir(parents=True, exist_ok=True)
+        logger.info("Downloading parallel data...")
+        self.get_parallel_data(
+            self.source_language_identifier,
+            self.target_language_identifier,
+            self.aligned_data_path,
+            self.corpus
+        )
+        language_pair = f"{self.source_language_identifier}-{self.target_language_identifier}"
+        base_path = f"{self.aligned_data_path}/{language_pair}/{self.corpus}.{language_pair}"
+        logger.info("Preparing data for alignment...")
         self.prepare_data_for_alignment(
-            f"{self.aligned_data_path}/{self.source_language}.txt",
-            f"{self.aligned_data_path}/{self.target_language}.txt",
+            f"{base_path}.{self.source_language_identifier}",
+            f"{base_path}.{self.target_language_identifier}",
             f"{self.aligned_data_path}/tokenized_parallel_data.txt"
         )
+        logger.info("Computing alignment...")
         self.get_alignment(f"{self.aligned_data_path}/tokenized_parallel_data.txt", self.aligned_data_path)
         prob = self.get_prob_para(
             f"{self.aligned_data_path}/tokenized_parallel_data.txt",
@@ -237,6 +265,7 @@ class RamenTokenizerTransfer(RandomInitializationTokenizerTransfer):
         num_src_per_tgt = np.array([len(x) for x in prob.values()]).mean()
         logger.info(f"# aligned src / tgt: {num_src_per_tgt:.5}")
 
+        logger.info("Initializing target embeddings using translation probabilities...")
         for t, ws in prob.items():
             if not self.target_tokenizer.token_to_id(t):
                 continue
@@ -251,5 +280,8 @@ class RamenTokenizerTransfer(RandomInitializationTokenizerTransfer):
             # get index of target word t
             ti = self.target_tokenizer.token_to_id(t)
             target_embeddings[ti] = px @ self.source_embeddings[ix]
+            # tgt_bias[ti] = px.dot(src_bias[ix])
+            # RAMEN actually sets the bias as well based on the source model bias
+            # and manually sets the output embeddings (of the LM head) to the same value as the input embeddings
 
         return target_embeddings

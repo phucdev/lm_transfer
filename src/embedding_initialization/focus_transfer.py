@@ -83,7 +83,31 @@ class FocusTokenizerTransfer(OverlapTokenizerTransfer):
         self.seed = seed
         self.device = device
         self.verbosity = verbosity
-        self.fasttext_model = self.load_auxiliary_embeddings()
+        self.fasttext_model = None
+
+        self.transfer_method = "focus"
+
+    def save_parameters_to_dict(self):
+        """
+        Method that saves the parameters of the FocusTokenizerTransfer object to a dictionary.
+
+        :return: A dictionary containing the parameters of the FocusTokenizerTransfer object.
+        """
+        parameters = super().save_parameters_to_dict()
+        parameters.update({
+            "auxiliary_embedding_mode": self.auxiliary_embedding_mode,
+            "target_training_data_path": self.target_training_data_path,
+            "fasttext_model_path": self.fasttext_model_path,
+            "language_identifier": self.language_identifier,
+            "fasttext_model_epochs": self.fasttext_model_epochs,
+            "fasttext_model_dim": self.fasttext_model_dim,
+            "fasttext_model_min_count": self.fasttext_model_min_count,
+            "processes": self.processes,
+            "seed": self.seed,
+            "device": self.device,
+            "verbosity": self.verbosity
+        })
+        return parameters
 
     def load_auxiliary_embeddings(self):
         if self.auxiliary_embedding_mode == "fasttext-tokenlevel":
@@ -124,10 +148,13 @@ class FocusTokenizerTransfer(OverlapTokenizerTransfer):
 
         :return: The initialized embedding matrix
         """
-        target_embeddings = super().initialize_embeddings(**kwargs)
-        assert self.fasttext_model is not None, "Fasttext model is not loaded."
+        logger.info("(1/3) Load or train FastText embeddings for the target tokenizer...")
+        self.fasttext_model = self.load_auxiliary_embeddings()
 
-        # Initialize the rest using the helper embeddings
+        logger.info("(2/3) Create random fallback matrix for target embeddings and copy source embeddings for overlapping tokens...")
+        target_embeddings = super().initialize_embeddings(**kwargs)
+
+        logger.info("(3/3) Initialize the rest based on the overlap and the auxiliary embeddings with the FOCUS method")
         if self.missing_tokens:
             new_tokens_lst = []
             for token, missing_token_info in self.missing_tokens:
@@ -187,4 +214,6 @@ class FocusTokenizerTransfer(OverlapTokenizerTransfer):
 
                 new_token_target_vocab_idx = new_tokens_lst[new_token_idx].target.id
                 target_embeddings[new_token_target_vocab_idx] = convex_combination
+                self.cleverly_initialized_tokens += 1
+        logger.info(f"Initialized {self.cleverly_initialized_tokens}/{len(self.target_tokens)} tokens with the FOCUS method.")
         return target_embeddings

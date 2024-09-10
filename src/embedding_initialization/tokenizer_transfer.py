@@ -58,9 +58,11 @@ class TokenizerTransfer:
         # Information about the transfer
         self.overlap_based_initialized_tokens = 0
         self.cleverly_initialized_tokens = 0
+        self.transfer_method = None
 
     def save_parameters_to_dict(self):
         parameters_dict = {
+            "transfer_method": self.transfer_method,
             "source_model_name_or_path": self.source_model_name_or_path,
             "target_tokenizer_name_or_path": self.target_tokenizer_name,
             "target_model_path": self.target_model_path,
@@ -142,6 +144,7 @@ class RandomInitializationTokenizerTransfer(TokenizerTransfer):
         """
         super().__init__(source_model_name_or_path, target_tokenizer_name_or_path, target_model_path, **kwargs)
         self.init_method = init_method
+        self.transfer_method = "random_initialization"
 
     def save_parameters_to_dict(self):
         parameters_dict = super().save_parameters_to_dict()
@@ -235,6 +238,8 @@ class OverlapTokenizerTransfer(RandomInitializationTokenizerTransfer):
         self.overlapping_tokens = None
         self.missing_tokens = None
         self.fasttext_model = None
+
+        self.transfer_method = "overlap_initialization"
 
     def save_parameters_to_dict(self):
         parameters_dict = super().save_parameters_to_dict()
@@ -363,6 +368,6 @@ class OverlapTokenizerTransfer(RandomInitializationTokenizerTransfer):
 
         logger.info(f"Copied source embeddings for {len(overlapping_token_indices)}/{len(self.target_tokens)} "
                     f"target tokens by leveraging the overlap between the source and the target vocabularies")
-        self.cleverly_initialized_tokens = len(overlapping_token_indices)
-
+        self.overlap_based_initialized_tokens = len(overlapping_token_indices)
+        self.cleverly_initialized_tokens = self.overlap_based_initialized_tokens
         return target_embeddings

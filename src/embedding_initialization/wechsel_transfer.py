@@ -179,6 +179,38 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
         self.source_transform = lambda x: x
         self.target_transform = lambda x: x
 
+        self.transfer_method = "wechsel"
+
+    def save_parameters_to_dict(self):
+        """
+        Method to save all parameters to a dictionary for saving the model configuration
+        :return:
+        """
+        parameters = super().save_parameters_to_dict()
+        parameters.update({
+            "bilingual_dictionary_path": self.bilingual_dictionary_path,
+            "source_language_identifier": self.source_language_identifier,
+            "target_language_identifier": self.target_language_identifier,
+            "align_with_bilingual_dictionary": self.align_with_bilingual_dictionary,
+            "use_subword_info": self.use_subword_info,
+            "max_n_word_vectors": self.max_n_word_vectors,
+            "neighbors": self.neighbors,
+            "temperature": self.temperature,
+            "auxiliary_embedding_mode": self.auxiliary_embedding_mode,
+            "source_training_data_path": self.source_training_data_path,
+            "target_training_data_path": self.target_training_data_path,
+            "source_fasttext_model_path": self.source_fasttext_model_path,
+            "target_fasttext_model_path": self.target_fasttext_model_path,
+            "fasttext_model_epochs": self.fasttext_model_epochs,
+            "fasttext_model_dim": self.fasttext_model_dim,
+            "fasttext_model_min_count": self.fasttext_model_min_count,
+            "processes": self.processes,
+            "seed": self.seed,
+            "device": self.device,
+            "verbosity": self.verbosity
+        })
+        return parameters
+
     def load_auxiliary_embeddings(self):
         # This loads pre-trained fasttext embeddings
         # TODO: add the possibility to train fasttext embeddings from scratch similar to FOCUS
@@ -310,8 +342,8 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
 
         return embs_matrix, sources
 
-    @staticmethod
     def create_target_embeddings(
+            self,
             source_subword_embeddings,
             target_subword_embeddings,
             source_tokenizer,
@@ -384,9 +416,7 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
                     # Fall back on random initialization
                     not_found.append(target_tokenizer.convert_ids_to_tokens([token_id])[0])
 
-        logging.info(
-            f"Matching token found for {n_matched} of {len(target_embeddings)} tokens."
-        )
+        self.cleverly_initialized_tokens = n_matched
         return target_embeddings, not_found, sources
 
     def initialize_embeddings(self, **kwargs):
@@ -413,19 +443,19 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
         """
         target_embeddings = self.initialize_random_embeddings()     # Random initialization
 
-        # Load FastText embeddings for source and target languages
+        logger.info("(1/6) Loading FastText embeddings for source and target languages...")
         self.load_auxiliary_embeddings()
-        # Compute alignment for word embeddings using Orthogonal Procrustes method
+        logger.info("(2/6) Compute alignment for word embeddings using Orthogonal Procrustes method...")
         self.set_embedding_transformations()
 
-        # Compute subword embeddings for source and target languages
+        logger.info("(3/6) Compute subword embeddings for source and target languages")
         source_subword_embeddings, source_subword_to_word = self.get_subword_embeddings_in_word_embedding_space(
             self.source_tokenizer, self.fasttext_source_embeddings, verbose=self.verbosity == "debug"
         )
         target_subword_embeddings, target_subword_to_word = self.get_subword_embeddings_in_word_embedding_space(
             self.target_tokenizer, self.fasttext_target_embeddings, verbose=self.verbosity == "debug"
         )
-        # Align source and target subword embeddings using alignment matrix from word embeddings
+        logger.info("(4/6) Align source and target subword embeddings using alignment matrix from word embeddings")
         source_subword_embeddings = self.source_transform(source_subword_embeddings)
         target_subword_embeddings = self.target_transform(target_subword_embeddings)
         source_subword_embeddings /= (
@@ -434,7 +464,7 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
         target_subword_embeddings /= (
                 np.linalg.norm(target_subword_embeddings, axis=1)[:, np.newaxis] + 1e-8
         )
-        # Calculate target embeddings based on similarities in the auxiliary embedding space
+        logger.info("(5/6) Calculate target embeddings based on similarities in the auxiliary embedding space")
         target_embeddings, not_found, sources = self.create_target_embeddings(
             source_subword_embeddings,
             target_subword_embeddings,
@@ -448,9 +478,11 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
         # not_found contains all tokens that could not be matched and whose embeddings were initialized randomly
         # sources contains the source tokens for each target token whose embeddings were used for initialization
 
-        # Copy special tokens
+        logger.info("(6/6) Copy embeddings for overlapping special tokens")
         target_embeddings, overlapping_token_indices = self.copy_special_tokens(
             target_embeddings, return_overlapping_token_indices=True
         )
+        self.overlap_based_initialized_tokens = len(overlapping_token_indices)
 
+        logger.info(f"Initialized {self.cleverly_initialized_tokens}/{len(self.target_tokens)} tokens using WECHSEL method.")
         return target_embeddings

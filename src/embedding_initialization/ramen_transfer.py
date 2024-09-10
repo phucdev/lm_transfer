@@ -2,11 +2,12 @@ import logging
 import subprocess
 import os
 import numpy as np
+import torch
 
 from tqdm import tqdm
 from pathlib import Path
-from collections import defaultdict
-from .tokenizer_transfer import RandomInitializationTokenizerTransfer
+from collections import defaultdict, Counter
+from .tokenizer_transfer import OverlapTokenizerTransfer
 from ..utils.download_utils import download, decompress_archive
 
 logging.basicConfig(
@@ -17,7 +18,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class RamenTokenizerTransfer(RandomInitializationTokenizerTransfer):
+class RamenTokenizerTransfer(OverlapTokenizerTransfer):
     def __init__(
             self,
             source_model_name_or_path: str,
@@ -95,25 +96,30 @@ class RamenTokenizerTransfer(RandomInitializationTokenizerTransfer):
         """
         data_path = Path(data_path)
         data_path.parent.mkdir(parents=True, exist_ok=True)
-        if corpus == "OpenSubtitles":
-            base_link = f"https://object.pouta.csc.fi/OPUS-OpenSubtitles/v2018/moses/"
-        elif corpus == "CCMatrix":
-            base_link = f"https://object.pouta.csc.fi/OPUS-CCMatrix/v1/moses/"
-        elif corpus == "NLLB":
-            base_link = f"https://object.pouta.csc.fi/OPUS-NLLB/v1/moses/"
-        elif corpus == "CCAligned":
-            base_link = f"https://object.pouta.csc.fi/OPUS-CCAligned/v1/moses/"
-        elif corpus == "WikiMatrix":
-            base_link = f"https://object.pouta.csc.fi/OPUS-WikiMatrix/v1/moses/"
-        else:
-            # This might fail and result in a RunTime error if the base_link is different for the corpus
-            base_link = f"https://object.pouta.csc.fi/OPUS-{corpus}/v1/moses/"
         language_pair = f"{source_language}-{target_language}"
-        download(f"{base_link}{language_pair}.txt.zip",
-                 data_path.joinpath(f"{language_pair}.txt.zip"))
-        decompress_archive(data_path.joinpath(f"{language_pair}.txt.zip"),
-                           output_path=Path(data_path).joinpath(f"{language_pair}"))
-        logger.info(f"Downloaded parallel data for {source_language} and {target_language} to {data_path}")
+        output_path = Path(data_path).joinpath(f"{language_pair}")
+        if output_path.exists():
+            logger.info(f"Parallel data for {source_language} and {target_language} already exists in {data_path}. "
+                        f"Skipping download")
+        else:
+            if corpus == "OpenSubtitles":
+                base_link = f"https://object.pouta.csc.fi/OPUS-OpenSubtitles/v2018/moses/"
+            elif corpus == "CCMatrix":
+                base_link = f"https://object.pouta.csc.fi/OPUS-CCMatrix/v1/moses/"
+            elif corpus == "NLLB":
+                base_link = f"https://object.pouta.csc.fi/OPUS-NLLB/v1/moses/"
+            elif corpus == "CCAligned":
+                base_link = f"https://object.pouta.csc.fi/OPUS-CCAligned/v1/moses/"
+            elif corpus == "WikiMatrix":
+                base_link = f"https://object.pouta.csc.fi/OPUS-WikiMatrix/v1/moses/"
+            else:
+                # This might fail and result in a RunTime error if the base_link is different for the corpus
+                base_link = f"https://object.pouta.csc.fi/OPUS-{corpus}/v1/moses/"
+            download(f"{base_link}{language_pair}.txt.zip",
+                     data_path.joinpath(f"{language_pair}.txt.zip"))
+            decompress_archive(data_path.joinpath(f"{language_pair}.txt.zip"),
+                               output_path=output_path)
+            logger.info(f"Downloaded parallel data for {source_language} and {target_language} to {data_path}")
 
     def process_batch(self, source_batch, target_batch):
         """
@@ -142,25 +148,27 @@ class RamenTokenizerTransfer(RandomInitializationTokenizerTransfer):
         :param batch_size:
         """
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-        with (open(source_file_path, 'r') as source_reader, open(target_file_path, 'r') as target_reader,
-              open(output_path, 'w') as writer):
-            source_batch = []
-            target_batch = []
-            for idx, (en_line, vi_line) in tqdm(enumerate(zip(source_reader, target_reader)), desc="Tokenizing parallel data"):
-                source_batch.append(en_line.strip())
-                target_batch.append(vi_line.strip())
-                if len(source_batch) < batch_size:
-                    continue
-                buffer = self.process_batch(source_batch, target_batch)
-                writer.writelines(buffer)
+        if Path(output_path).exists():
+            logger.info(f"Tokenized parallel data already exists in {output_path}. Skipping tokenization")
+        else:
+            with (open(source_file_path, "r") as source_reader, open(target_file_path, "r") as target_reader,
+                  open(output_path, "w") as writer):
                 source_batch = []
                 target_batch = []
-            if source_batch:
-                buffer = self.process_batch(source_batch, target_batch)
-                writer.writelines(buffer)
+                for idx, (en_line, vi_line) in tqdm(enumerate(zip(source_reader, target_reader)), desc="Tokenizing parallel data"):
+                    source_batch.append(en_line.strip())
+                    target_batch.append(vi_line.strip())
+                    if len(source_batch) < batch_size:
+                        continue
+                    buffer = self.process_batch(source_batch, target_batch)
+                    writer.writelines(buffer)
+                    source_batch = []
+                    target_batch = []
+                if source_batch:
+                    buffer = self.process_batch(source_batch, target_batch)
+                    writer.writelines(buffer)
 
-    @staticmethod
-    def get_alignment(parallel_data_path, output_path):
+    def get_alignment(self, parallel_data_path, output_path):
         """
         Run fast_align on the data (forward, reverse and create symmetric alignment)
 
@@ -170,66 +178,88 @@ class RamenTokenizerTransfer(RandomInitializationTokenizerTransfer):
         # Get the directory of the current script
         current_dir = os.path.dirname(os.path.abspath(__file__))
 
+        language_pair = f"{self.source_language_identifier}-{self.target_language_identifier}"
+
         # Construct the paths to the fast_align and atools executables
-        fast_align_path = os.path.join(current_dir, '..', '..', 'tools', 'fast_align', 'build', 'fast_align')
-        atools_path = os.path.join(current_dir, '..', '..', 'tools', 'fast_align', 'build', 'atools')
+        fast_align_path = os.path.join(current_dir, "..", "..", "tools", "fast_align", "build", "fast_align")
+        atools_path = os.path.join(current_dir, "..", "..", "tools", "fast_align", "build", "atools")
 
-        logger.info("Running fast_align forward alignment")
-        command1 = [
-            fast_align_path,
-            "-i", parallel_data_path,
-            "-d", "-o", "-v",
-            "-I", "10"
-        ]
-        with open(f"{output_path}/forward.source-target", "w") as output_file:
-            subprocess.run(command1, stdout=output_file)
+        forward_path = Path(f"{output_path}/forward.{language_pair}")
+        if forward_path.exists():
+            logger.info(f"Forward alignment already exists in {output_path}.")
+        else:
+            logger.info("Running fast_align forward alignment")
+            command1 = [
+                fast_align_path,
+                "-i", parallel_data_path,
+                "-d", "-o", "-v",
+                "-I", "10"
+            ]
+            with open(forward_path, "w") as output_file:
+                subprocess.run(command1, stdout=output_file)
 
-        logger.info("Running fast_align reverse alignment")
-        command2 = [
-            fast_align_path,
-            "-i", parallel_data_path,
-            "-d", "-o", "-v", "-r",
-            "-I", "10"
-        ]
-        with open(f"{output_path}/reverse.source-target", "w") as output_file:
-            subprocess.run(command2, stdout=output_file)
+        reverse_path = Path(f"{output_path}/reverse.{language_pair}")
+        if reverse_path.exists():
+            logger.info(f"Reverse alignment already exists in {output_path}.")
+        else:
+            logger.info("Running fast_align reverse alignment")
+            command2 = [
+                fast_align_path,
+                "-i", parallel_data_path,
+                "-d", "-o", "-v", "-r",
+                "-I", "10"
+            ]
+            with open(reverse_path, "w") as output_file:
+                subprocess.run(command2, stdout=output_file)
 
-        logger.info("Running atools for symmetric alignment")
-        command3 = [
-            atools_path,
-            "-i", f"{output_path}/forward.source-target",
-            "-j", f"{output_path}/reverse.source-target",
-            "-c", "grow-diag-final-and"
-        ]
-        with open(f"{output_path}/align.source-target", "w") as output_file:
-            subprocess.run(command3, stdout=output_file)
+        symmetric_path = Path(f"{output_path}/align.{language_pair}")
+        if symmetric_path.exists():
+            logger.info(f"Symmetric alignment already exists in {output_path}.")
+        else:
+            logger.info("Running atools for symmetric alignment")
+            command3 = [
+                atools_path,
+                "-i", str(forward_path),
+                "-j", str(reverse_path),
+                "-c", "grow-diag-final-and"
+            ]
+            with open(symmetric_path, "w") as output_file:
+                subprocess.run(command3, stdout=output_file)
 
-    @staticmethod
-    def get_prob_para(parallel_data_path, alignment_path):
-        count = defaultdict(dict)
-        with open(parallel_data_path, "r") as parallel_data_file, open(alignment_path, "r") as alignment_file:
-            for line, alignment in tqdm(zip(parallel_data_file, alignment_file), desc="Collecting counts"):
-                langs = line.strip().split(' ||| ')
-                if len(langs) != 2:
-                    continue
-                # An alignment looks something like this: 0-0 1-1 1-2
-                alignment = [tuple(map(int, x.split('-'))) for x in alignment.split()]
-                source_tokens = langs[0].split()
-                target_tokens = langs[1].split()
-
-                for (sid, tid) in alignment:
-                    if sid >= len(source_tokens) or tid >= len(target_tokens):
+    def get_prob_para(self, parallel_data_path, alignment_path, output_path=None):
+        language_pair = f"{self.source_language_identifier}-{self.target_language_identifier}"
+        if output_path is None:
+            output_path = Path(alignment_path).parent.joinpath(f"translation_probabilities_{language_pair}.pt")
+        if Path(output_path).exists():
+            logger.info(f"Translation probabilities already exist in {output_path}. Loading them.")
+            return torch.load(output_path)
+        else:
+            count = defaultdict(Counter)
+            with open(parallel_data_path, "r") as parallel_data_file, open(alignment_path, "r") as alignment_file:
+                for line, alignment in tqdm(zip(parallel_data_file, alignment_file), desc="Collecting counts"):
+                    langs = line.strip().split(' ||| ')
+                    if len(langs) != 2:
                         continue
-                    source_token, target_token = source_tokens[sid], target_tokens[tid]
-                    count[target_token][source_token] += 1
+                    # An alignment looks something like this: 0-0 1-1 1-2
+                    alignment = [tuple(map(int, x.split("-"))) for x in alignment.split()]
+                    source_tokens = langs[0].split()
+                    target_tokens = langs[1].split()
 
-        # re-normalize counts to get translation probability
-        logger.info('Re-normalizing counts')
-        for target_token, source_token_counts in tqdm(count.items()):
-            total_source_token_count = sum(source_token_counts.values())
-            for source_token, source_token_count in source_token_counts.items():
-                count[target_token][source_token] = source_token_count / total_source_token_count
-        return count
+                    for (sid, tid) in alignment:
+                        if sid >= len(source_tokens) or tid >= len(target_tokens):
+                            continue
+                        source_token, target_token = source_tokens[sid], target_tokens[tid]
+                        count[target_token][source_token] += 1
+
+            # re-normalize counts to get translation probability
+            logger.info("Re-normalizing counts")
+            normalized_count = defaultdict(defaultdict)
+            for target_token, source_token_counts in tqdm(count.items()):
+                total_source_token_count = sum(source_token_counts.values())
+                for source_token, source_token_count in source_token_counts.items():
+                    normalized_count[target_token][source_token] = source_token_count / total_source_token_count
+            torch.save(normalized_count, output_path)
+            return normalized_count
 
     def initialize_embeddings(self, **kwargs):
         """
@@ -239,9 +269,8 @@ class RamenTokenizerTransfer(RandomInitializationTokenizerTransfer):
 
         :return: The initialized embedding matrix
         """
-        target_embeddings = super().initialize_embeddings(**kwargs)
         Path(self.aligned_data_path).mkdir(parents=True, exist_ok=True)
-        logger.info("Downloading parallel data...")
+        logger.info("(1/6) Downloading parallel data...")
         self.get_parallel_data(
             self.source_language_identifier,
             self.target_language_identifier,
@@ -250,24 +279,36 @@ class RamenTokenizerTransfer(RandomInitializationTokenizerTransfer):
         )
         language_pair = f"{self.source_language_identifier}-{self.target_language_identifier}"
         base_path = f"{self.aligned_data_path}/{language_pair}/{self.corpus}.{language_pair}"
-        logger.info("Preparing data for alignment...")
+        logger.info("(2/6) Tokenizing parallel data for alignment...")
+        tokenized_parallel_data_path = f"{self.aligned_data_path}/tokenized_parallel_data.{language_pair}"
         self.prepare_data_for_alignment(
             f"{base_path}.{self.source_language_identifier}",
             f"{base_path}.{self.target_language_identifier}",
-            f"{self.aligned_data_path}/tokenized_parallel_data.txt"
+            tokenized_parallel_data_path
         )
-        logger.info("Computing alignment...")
-        self.get_alignment(f"{self.aligned_data_path}/tokenized_parallel_data.txt", self.aligned_data_path)
+        logger.info("(3/6) Computing alignment...")
+        symmetric_alignment_path = f"{self.aligned_data_path}/align.{language_pair}"
+        self.get_alignment(tokenized_parallel_data_path, self.aligned_data_path)
+
+        logger.info("(4/6) Collecting counts and computing translation probabilities...")
         prob = self.get_prob_para(
-            f"{self.aligned_data_path}/tokenized_parallel_data.txt",
-            f"{self.aligned_data_path}/align.source-target"
+            tokenized_parallel_data_path,
+            symmetric_alignment_path
         )
         num_src_per_tgt = np.array([len(x) for x in prob.values()]).mean()
         logger.info(f"# aligned src / tgt: {num_src_per_tgt:.5}")
 
-        logger.info("Initializing target embeddings using translation probabilities...")
+        logger.info("(5/6) Create random fallback matrix and copy embeddings for overlapping special tokens...")
+        target_embeddings = self.initialize_random_embeddings()
+        target_embeddings, overlapping_token_indices = self.copy_special_tokens(
+            target_embeddings, return_overlapping_token_indices=True
+        )
+        self.overlap_based_initialized_tokens = len(overlapping_token_indices)
+        self.cleverly_initialized_tokens = len(overlapping_token_indices)
+
+        logger.info("(6/6) Initializing target embeddings using translation probabilities...")
         for t, ws in prob.items():
-            if not self.target_tokenizer.token_to_id(t):
+            if not self.target_token_to_idx[t]:
                 continue
 
             px, ix = [], []
@@ -278,10 +319,12 @@ class RamenTokenizerTransfer(RandomInitializationTokenizerTransfer):
                 px.append(p)
             px = np.asarray(px)
             # get index of target word t
-            ti = self.target_tokenizer.token_to_id(t)
+            ti = self.target_token_to_idx[t]
             target_embeddings[ti] = px @ self.source_embeddings[ix]
+            self.cleverly_initialized_tokens += 1
             # tgt_bias[ti] = px.dot(src_bias[ix])
             # RAMEN actually sets the bias as well based on the source model bias
             # and manually sets the output embeddings (of the LM head) to the same value as the input embeddings
-
+        logger.info(f"Initialized embeddings for {self.cleverly_initialized_tokens}/{len(self.target_tokens)} tokens "
+                    f"using RAMEN method.")
         return target_embeddings

@@ -56,6 +56,19 @@ class CLPTokenizerTransfer(OverlapTokenizerTransfer):
         self.helper_embeddings = self.helper_model.get_input_embeddings().weight.detach().numpy()
         self.helper_token_to_idx = {t: i for t, i in self.helper_tokenizer.get_vocab().items()}
 
+        self.transfer_method = "clp"
+
+    def save_parameters_to_dict(self):
+        """
+        Method that saves the parameters of the CLPTokenizerTransfer object to a dictionary.
+
+        :return: A dictionary containing the parameters of the CLPTokenizerTransfer object.
+        """
+        parameters = super().save_parameters_to_dict()
+        parameters["helper_model_name_or_path"] = self.helper_model_name_or_path
+        parameters["helper_tokenizer_name_or_path"] = self.helper_tokenizer_name_or_path
+        return parameters
+
     def initialize_embeddings(self, **kwargs):
         """
         Method that initializes the embeddings of a LM with a target tokenizer given a source LM.
@@ -66,9 +79,10 @@ class CLPTokenizerTransfer(OverlapTokenizerTransfer):
 
         :return: The initialized embedding matrix
         """
+        logger.info("(1/2) Create random fallback matrix for target embeddings and copy source embeddings for overlapping tokens...")
         target_embeddings = super().initialize_embeddings(**kwargs)
 
-        # Initialize the rest using the helper embeddings
+        logger.info("(2/2) Initialize the rest based on the overlap and the helper embeddings with the CLP method")
         if self.missing_tokens:
             missing_tokens_idxs = [missing_token_info.target.id for token, missing_token_info in self.missing_tokens]
             overlapping_tokens_source_idxs = []
@@ -100,4 +114,7 @@ class CLPTokenizerTransfer(OverlapTokenizerTransfer):
                 # weighted average of overlapping token embeddings with weight from similarity in helper token embedding space
                 target_vec = np.average(overlapping_token_vecs, axis=0, weights=norm_sims)
                 target_embeddings[helper_token_idx] = target_vec
+                self.cleverly_initialized_tokens += 1
+
+        logger.info(f"Initialized {self.cleverly_initialized_tokens}/{len(self.target_tokens)} tokens with the CLP method.")
         return target_embeddings

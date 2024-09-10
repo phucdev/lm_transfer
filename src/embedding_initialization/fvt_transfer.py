@@ -45,6 +45,17 @@ class FVTTokenizerTransfer(OverlapTokenizerTransfer):
         """
         super().__init__(source_model_name_or_path, target_tokenizer_name_or_path, target_model_path, **kwargs)
 
+        self.transfer_method = "fvt"
+
+    def save_parameters_to_dict(self):
+        """
+        Method that saves the parameters of the FVT transfer method to a dictionary.
+        :return: The dictionary containing the parameters of the FVT transfer method.
+        """
+        parameters = super().save_parameters_to_dict()
+        parameters["transfer_method"] = self.transfer_method
+        return parameters
+
     def initialize_embeddings(self, **kwargs):
         """
         Method that initializes the embeddings of a given LM with the source embeddings.
@@ -59,10 +70,11 @@ class FVTTokenizerTransfer(OverlapTokenizerTransfer):
 
         :return: The initialized embedding matrix
         """
-        # Random initialization + copy the embeddings of the overlapping tokens (and special tokens)
+        logger.info("(1/2) Create random fallback matrix for target embeddings and copy source embeddings for overlapping tokens...")
         target_embeddings = super().initialize_embeddings(**kwargs)
         ngram_vocab = self.target_tokenizer.ngram_vocab if hasattr(self.target_tokenizer, 'ngram_vocab') else {}
 
+        logger.info("(2/2) Initialize target embeddings for missing tokens using FVT method...")
         # Initialize the rest by partitioning the target token into source tokens using the source tokenizer
         # and averaging the source embeddings of tokens in the partition
         if self.missing_tokens:
@@ -81,4 +93,6 @@ class FVTTokenizerTransfer(OverlapTokenizerTransfer):
                 target_token_idx = self.target_token_to_idx[target_token]
                 # TODO instead of averaging, we could use some other method for aggregating the embeddings
                 target_embeddings[target_token_idx] = np.mean(self.source_embeddings[partition_token_idxs], axis=0)
+                self.cleverly_initialized_tokens += 1
+        logger.info(f"Initialized {self.cleverly_initialized_tokens}({len(self.target_tokens)} target embeddings using FVT method.")
         return target_embeddings

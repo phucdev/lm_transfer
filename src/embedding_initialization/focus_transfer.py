@@ -152,6 +152,8 @@ class FocusTokenizerTransfer(OverlapTokenizerTransfer):
         self.fasttext_model = self.load_auxiliary_embeddings()
 
         logger.info("(2/3) Create random fallback matrix for target embeddings and copy source embeddings for overlapping tokens...")
+        # The number of copied source embeddings may be lower than the number of overlapping tokens
+        # if the FastText model does not contain the token
         target_embeddings = super().initialize_embeddings(**kwargs)
 
         logger.info("(3/3) Initialize the rest based on the overlap and the auxiliary embeddings with the FOCUS method")
@@ -192,7 +194,7 @@ class FocusTokenizerTransfer(OverlapTokenizerTransfer):
             logger.debug("Computing new embeddings...")
 
             # Do `torch.stack` once outside of loop to save time
-            overlapping_src_embs = [t.source_embedding for t in overlapping_tokens_lst]
+            overlapping_src_embs = [torch.from_numpy(t.source_embedding).to(self.device) for t in overlapping_tokens_lst]
             overlapping_src_embs = torch.stack(overlapping_src_embs)
 
             for new_token_idx in tqdm(
@@ -213,7 +215,8 @@ class FocusTokenizerTransfer(OverlapTokenizerTransfer):
                 convex_combination = torch.sum(weighted_src_embs, dim=0)
 
                 new_token_target_vocab_idx = new_tokens_lst[new_token_idx].target.id
-                target_embeddings[new_token_target_vocab_idx] = convex_combination
+                # Convert to numpy array for compatibility with the rest of the code
+                target_embeddings[new_token_target_vocab_idx] = convex_combination.cpu().numpy()
                 self.cleverly_initialized_tokens += 1
         logger.info(f"Initialized {self.cleverly_initialized_tokens}/{len(self.target_tokens)} tokens with the FOCUS method.")
         return target_embeddings

@@ -282,25 +282,25 @@ class OverlapTokenizerTransfer(RandomInitializationTokenizerTransfer):
         :param return_overlapping_token_indices:
         :return:
         """
-        logger.info(f'{len(self.overlapping_tokens)=}; {len(self.missing_tokens)=}')
+        logger.info(f"{len(self.overlapping_tokens)=}; {len(self.missing_tokens)=}")
 
         overlapping_token_indices = []
         if not self.overlapping_tokens:
-            raise ValueError('No overlapping tokens found')
+            raise ValueError("No overlapping tokens found")
         # Set overlapping tokens
         for token, overlapping_token_info in tqdm(self.overlapping_tokens,
                                                   desc="Initialize target embeddings for overlapping tokens"):
+            target_token_idx = overlapping_token_info.target.id
+            source_token_idx = overlapping_token_info.source[0].id
+            overlapping_token_info.source_embedding = self.source_embeddings[source_token_idx]
             if self.fasttext_model is not None:
                 if self.is_very_rare_token(token):
                     overlapping_token_info.use_for_focus = False
                     continue
                 else:
                     overlapping_token_info.auxiliary_embedding = self.fasttext_model[token]
-            target_token_idx = overlapping_token_info.target.id
-            source_token_idx = overlapping_token_info.source[0].id
             target_embeddings[target_token_idx] = self.source_embeddings[source_token_idx]
-            if target_token_idx not in overlapping_token_indices:
-                overlapping_token_indices.append(target_token_idx)
+            overlapping_token_indices.append(target_token_idx)
 
         if return_overlapping_token_indices:
             return target_embeddings, overlapping_token_indices
@@ -338,7 +338,7 @@ class OverlapTokenizerTransfer(RandomInitializationTokenizerTransfer):
                     )
                     if target_token_idx not in overlapping_token_indices:
                         overlapping_token_indices.append(target_token_idx)
-            logger.info(f'Copied embeddings for special tokens: {copied_special_tokens}')
+            logger.info(f"Copied embeddings for special tokens: {copied_special_tokens}")
 
         if return_overlapping_token_indices:
             return target_embeddings, overlapping_token_indices

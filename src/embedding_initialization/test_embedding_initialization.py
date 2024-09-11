@@ -61,6 +61,8 @@ def test_focus_embedding_initialization():
         source_model_name,
         target_model_name,
         language_identifier="vi",
+        target_training_data_path="data/culturax_vi/sample.jsonl",
+        processes=1
     )
     target_model = transfer_pipeline.transfer()
     assert target_model is not None

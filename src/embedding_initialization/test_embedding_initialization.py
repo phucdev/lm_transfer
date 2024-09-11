@@ -12,7 +12,8 @@ from .ramen_transfer import RamenTokenizerTransfer
 def test_random_embedding_initialization():
     source_model_name = "FacebookAI/roberta-base"
     target_tokenizer_name = "phucdev/vi-spm-culturax-4g-sample"
-    transfer_pipeline = RandomInitializationTokenizerTransfer(source_model_name, target_tokenizer_name)
+    transfer_pipeline = RandomInitializationTokenizerTransfer(source_model_name, target_tokenizer_name,
+                                                              target_model_path="models/test/random_initialization")
     target_model = transfer_pipeline.transfer()
     assert target_model is not None
 
@@ -20,7 +21,8 @@ def test_random_embedding_initialization():
 def test_overlap_embedding_initialization():
     source_model_name = "FacebookAI/roberta-base"
     target_tokenizer_name = "phucdev/vi-spm-culturax-4g-sample"
-    transfer_pipeline = OverlapTokenizerTransfer(source_model_name, target_tokenizer_name)
+    transfer_pipeline = OverlapTokenizerTransfer(source_model_name, target_tokenizer_name,
+                                                              target_model_path="models/test/overlap_initialization")
     target_model = transfer_pipeline.transfer()
     assert target_model is not None
 
@@ -34,7 +36,8 @@ def test_ramen_embedding_initialization():
         aligned_data_path="data/parallel_data/OpenSubtitles",
         source_language_identifier="en",
         target_language_identifier="vi",
-        corpus="OpenSubtitles"
+        corpus="OpenSubtitles",
+        target_model_path="models/test/ramen_initialization"
     )
     target_model = transfer_pipeline.transfer()
     assert target_model is not None
@@ -49,6 +52,7 @@ def test_wechsel_embedding_initialization():
         bilingual_dictionary_path="bilingual_dictionary/MUSE/en-vi.txt",
         source_language_identifier="en",
         target_language_identifier="vi",
+        target_model_path="models/test/wechsel_initialization"
     )
     target_model = transfer_pipeline.transfer()
     assert target_model is not None
@@ -62,7 +66,8 @@ def test_focus_embedding_initialization():
         target_model_name,
         language_identifier="vi",
         target_training_data_path="data/culturax_vi/sample.jsonl",
-        processes=1
+        processes=1,
+        target_model_path="models/test/focus_initialization"
     )
     target_model = transfer_pipeline.transfer()
     assert target_model is not None
@@ -74,7 +79,8 @@ def test_clp_embedding_initialization():
     transfer_pipeline = CLPTokenizerTransfer(
         source_model_name,
         target_model_name,
-        helper_model_name_or_path=target_model_name
+        helper_model_name_or_path=target_model_name,
+        target_model_path="models/test/clp_initialization"
     )
     target_model = transfer_pipeline.transfer()
     assert target_model is not None
@@ -85,7 +91,8 @@ def test_fvt_embedding_initialization():
     target_model_name = "phucdev/vi-spm-culturax-4g-sample"
     transfer_pipeline = FVTTokenizerTransfer(
         source_model_name,
-        target_model_name
+        target_model_name,
+        target_model_path="models/test/fvt_initialization"
     )
     target_model= transfer_pipeline.transfer()
     assert target_model is not None

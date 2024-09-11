@@ -293,14 +293,13 @@ class OverlapTokenizerTransfer(RandomInitializationTokenizerTransfer):
             target_token_idx = overlapping_token_info.target.id
             source_token_idx = overlapping_token_info.source[0].id
             overlapping_token_info.source_embedding = self.source_embeddings[source_token_idx]
+            target_embeddings[target_token_idx] = self.source_embeddings[source_token_idx]
+            overlapping_token_indices.append(target_token_idx)
             if self.fasttext_model is not None:
                 if self.is_very_rare_token(token):
                     overlapping_token_info.use_for_focus = False
-                    continue
                 else:
                     overlapping_token_info.auxiliary_embedding = self.fasttext_model[token]
-            target_embeddings[target_token_idx] = self.source_embeddings[source_token_idx]
-            overlapping_token_indices.append(target_token_idx)
 
         if return_overlapping_token_indices:
             return target_embeddings, overlapping_token_indices

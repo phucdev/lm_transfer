@@ -167,14 +167,13 @@ class FocusTokenizerTransfer(OverlapTokenizerTransfer):
                     auxiliary_embedding = self.fasttext_model[token]
                     missing_token_info.auxiliary_embedding = auxiliary_embedding
                     new_tokens_lst.append(missing_token_info)
-            # Filter very rare overlapping tokens with no auxiliary embeddings
+            # Filter very rare overlapping tokens with no auxiliary embeddings before using them for FOCUS
             overlapping_tokens_lst = [
                 overlapping_token_info for t, overlapping_token_info in self.overlapping_tokens
                 if overlapping_token_info.use_for_focus
             ]
 
             # Convert to numpy arrays for fastdist
-            # TODO: The auxiliary embeddings should be numpy.ndarray objects already, so we could just concatenate them?
             new_auxiliary_embedding_matrix = np.asarray(
                 [t.auxiliary_embedding.tolist() for t in new_tokens_lst], dtype="float32")
             overlapping_auxiliary_embedding_matrix = np.asarray(

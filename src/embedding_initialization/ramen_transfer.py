@@ -1,3 +1,4 @@
+import json
 import logging
 import subprocess
 import os
@@ -7,6 +8,8 @@ import torch
 from tqdm import tqdm
 from pathlib import Path
 from collections import defaultdict, Counter
+from overrides import override
+
 from .tokenizer_transfer import OverlapTokenizerTransfer
 from ..utils.download_utils import download, decompress_archive
 
@@ -68,7 +71,9 @@ class RamenTokenizerTransfer(OverlapTokenizerTransfer):
         self.source_language_identifier = source_language_identifier
         self.target_language_identifier = target_language_identifier
         self.corpus = corpus
-        
+        self.translation_probabilities = None
+
+    @override
     def save_parameters_to_dict(self):
         """
         Method to save the parameters of the class to a dictionary.
@@ -261,53 +266,60 @@ class RamenTokenizerTransfer(OverlapTokenizerTransfer):
             torch.save(normalized_count, output_path)
             return normalized_count
 
-    def initialize_embeddings(self, **kwargs):
+    @override
+    def initialize_embeddings(self, source_embeddings, **kwargs):
         """
         Method that initializes the embeddings of a given LM with the source embeddings.
 
+        :param source_embeddings: The source embeddings to transfer
         :param kwargs: no kwargs
 
         :return: The initialized embedding matrix
         """
-        Path(self.aligned_data_path).mkdir(parents=True, exist_ok=True)
-        logger.info("(1/6) Downloading parallel data...")
-        self.get_parallel_data(
-            self.source_language_identifier,
-            self.target_language_identifier,
-            self.aligned_data_path,
-            self.corpus
-        )
-        language_pair = f"{self.source_language_identifier}-{self.target_language_identifier}"
-        base_path = f"{self.aligned_data_path}/{language_pair}/{self.corpus}.{language_pair}"
-        logger.info("(2/6) Tokenizing parallel data for alignment...")
-        tokenized_parallel_data_path = f"{self.aligned_data_path}/tokenized_parallel_data.{language_pair}"
-        self.prepare_data_for_alignment(
-            f"{base_path}.{self.source_language_identifier}",
-            f"{base_path}.{self.target_language_identifier}",
-            tokenized_parallel_data_path
-        )
-        logger.info("(3/6) Computing alignment...")
-        symmetric_alignment_path = f"{self.aligned_data_path}/align.{language_pair}"
-        self.get_alignment(tokenized_parallel_data_path, self.aligned_data_path)
+        if self.translation_probabilities is not None:
+            logger.info("Translation probabilities already computed. Skipping alignment and translation probability computation.")
+        else:
+            Path(self.aligned_data_path).mkdir(parents=True, exist_ok=True)
+            logger.info("(1/6) Downloading parallel data...")
+            self.get_parallel_data(
+                self.source_language_identifier,
+                self.target_language_identifier,
+                self.aligned_data_path,
+                self.corpus
+            )
+            language_pair = f"{self.source_language_identifier}-{self.target_language_identifier}"
+            base_path = f"{self.aligned_data_path}/{language_pair}/{self.corpus}.{language_pair}"
+            logger.info("(2/6) Tokenizing parallel data for alignment...")
+            tokenized_parallel_data_path = f"{self.aligned_data_path}/tokenized_parallel_data.{language_pair}"
+            self.prepare_data_for_alignment(
+                f"{base_path}.{self.source_language_identifier}",
+                f"{base_path}.{self.target_language_identifier}",
+                tokenized_parallel_data_path
+            )
+            logger.info("(3/6) Computing alignment...")
+            symmetric_alignment_path = f"{self.aligned_data_path}/align.{language_pair}"
+            self.get_alignment(tokenized_parallel_data_path, self.aligned_data_path)
 
-        logger.info("(4/6) Collecting counts and computing translation probabilities...")
-        prob = self.get_prob_para(
-            tokenized_parallel_data_path,
-            symmetric_alignment_path
-        )
-        num_src_per_tgt = np.array([len(x) for x in prob.values()]).mean()
-        logger.info(f"# aligned src / tgt: {num_src_per_tgt:.5}")
+            logger.info("(4/6) Collecting counts and computing translation probabilities...")
+            self.translation_probabilities = self.get_prob_para(
+                tokenized_parallel_data_path,
+                symmetric_alignment_path
+            )
+            num_src_per_tgt = np.array([len(x) for x in self.translation_probabilities.values()]).mean()
+            logger.info(f"# aligned src / tgt: {num_src_per_tgt:.5}")
 
         logger.info("(5/6) Create random fallback matrix and copy embeddings for overlapping special tokens...")
-        target_embeddings = self.initialize_random_embeddings()
+        target_embeddings = self.initialize_random_embeddings(source_embeddings=source_embeddings)
         target_embeddings, overlapping_token_indices = self.copy_special_tokens(
-            target_embeddings, return_overlapping_token_indices=True
+            source_embeddings=source_embeddings,
+            target_embeddings=target_embeddings,
+            return_overlapping_token_indices=True
         )
         self.overlap_based_initialized_tokens = len(overlapping_token_indices)
         self.cleverly_initialized_tokens = len(overlapping_token_indices)
 
         logger.info("(6/6) Initializing target embeddings using translation probabilities...")
-        for t, ws in prob.items():
+        for t, ws in self.translation_probabilities.items():
             if not self.target_token_to_idx[t]:
                 continue
 
@@ -320,11 +332,80 @@ class RamenTokenizerTransfer(OverlapTokenizerTransfer):
             px = np.asarray(px)
             # get index of target word t
             ti = self.target_token_to_idx[t]
-            target_embeddings[ti] = px @ self.source_embeddings[ix]
+            target_embeddings[ti] = px @ source_embeddings[ix]
             self.cleverly_initialized_tokens += 1
             # tgt_bias[ti] = px.dot(src_bias[ix])
             # RAMEN actually sets the bias as well based on the source model bias
-            # and manually sets the output embeddings (of the LM head) to the same value as the input embeddings
         logger.info(f"Initialized embeddings for {self.cleverly_initialized_tokens}/{len(self.target_tokens)} tokens "
                     f"using RAMEN method.")
         return target_embeddings
+
+    def initialize_output_bias(self):
+        """
+        Method that initializes the output bias of a given LM with the source bias and translation probabilities
+        from parallel data.
+
+        :return: The initialized bias vector
+        """
+        if self.source_output_bias is None:
+            logger.info("Source output bias is None. Returning None.")
+            return None
+        else:
+            logger.info("Initializing target output bias using translation probabilities...")
+            target_output_bias = np.zeros_like(self.source_output_bias)
+            for t, ws in self.translation_probabilities.items():
+                if not self.target_token_to_idx[t]:
+                    continue
+
+                px, ix = [], []
+                for e, p in ws.items():
+                    # get index of the source word e
+                    j = self.source_tokenizer.convert_tokens_to_ids(e)
+                    ix.append(j)
+                    px.append(p)
+                px = np.asarray(px)
+                # get index of target word t
+                ti = self.target_token_to_idx[t]
+                target_output_bias[ti] = px.dot(self.source_output_bias[ix])
+            return target_output_bias
+
+    @override
+    def transfer(self, **kwargs):
+        """
+        Method that creates a new LM model with transferred embeddings.
+        :param kwargs: no kwargs
+
+        :return: A new in_domain model
+        """
+
+        target_embeddings = self.initialize_embeddings(source_embeddings=self.source_embeddings, **kwargs)
+
+        target_model = self.source_model
+        target_model.resize_token_embeddings(len(self.target_tokenizer))
+        target_model.get_input_embeddings().weight.data = torch.from_numpy(target_embeddings)
+
+        # For models with separate embedding and unembedding matrix we need to repeat the process
+        # for the unembedding matrix
+        if not target_model.config.tie_word_embeddings:
+            target_output_embeddings = self.initialize_embeddings(
+                source_embeddings=self.source_output_embeddings,
+                **kwargs
+            )
+            target_model.get_output_embeddings().weight.data = torch.from_numpy(target_output_embeddings)
+
+        if self.source_output_bias is not None:
+            target_output_bias = self.initialize_output_bias()
+            if "roberta" in self.source_model_name_or_path:
+                target_model.lm_head.bias = torch.from_numpy(target_output_bias)
+            elif "bert" in self.source_model_name_or_path:
+                target_model.cls.predictions.decoder.bias = torch.from_numpy(target_output_bias)
+            else:
+                logger.warning("Could not set output bias. Model type not recognized.")
+
+        if self.target_model_path:
+            self.target_tokenizer.save_pretrained(self.target_model_path)
+            target_model.save_pretrained(self.target_model_path)
+            with open(Path(self.target_model_path) / "transfer_information.json", "w") as f:
+                information_dict = self.save_parameters_to_dict()
+                json.dump(information_dict, f, indent=2)
+        return target_model

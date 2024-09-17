@@ -5,6 +5,8 @@ import numpy as np
 
 from fastdist import fastdist
 from typing import Literal, Optional
+
+from overrides import override
 from tqdm.asyncio import tqdm
 from torch import Tensor
 from .tokenizer_transfer import OverlapTokenizerTransfer
@@ -87,6 +89,7 @@ class FocusTokenizerTransfer(OverlapTokenizerTransfer):
 
         self.transfer_method = "focus"
 
+    @override
     def save_parameters_to_dict(self):
         """
         Method that saves the parameters of the FocusTokenizerTransfer object to a dictionary.
@@ -138,12 +141,14 @@ class FocusTokenizerTransfer(OverlapTokenizerTransfer):
             fasttext_model = None
         return fasttext_model
 
-    def initialize_embeddings(self, **kwargs):
+    @override
+    def initialize_embeddings(self, source_embeddings, **kwargs):
         """
         Method that initializes the embeddings of a LM with a target tokenizer given a source LM.
         Leverages overlap between the source vocabulary and the target vocabulary to directly copy source embeddings
         and uses a helper model to initialize the rest.
 
+        :param source_embeddings: The source embeddings (either the input or output embeddings).
         :param kwargs: no kwargs
 
         :return: The initialized embedding matrix
@@ -154,7 +159,7 @@ class FocusTokenizerTransfer(OverlapTokenizerTransfer):
         logger.info("(2/3) Create random fallback matrix for target embeddings and copy source embeddings for overlapping tokens...")
         # The number of copied source embeddings may be lower than the number of overlapping tokens
         # if the FastText model does not contain the token
-        target_embeddings = super().initialize_embeddings(**kwargs)
+        target_embeddings = super().initialize_embeddings(source_embeddings=source_embeddings, **kwargs)
 
         logger.info("(3/3) Initialize the rest based on the overlap and the auxiliary embeddings with the FOCUS method")
         if self.missing_tokens:
@@ -193,7 +198,9 @@ class FocusTokenizerTransfer(OverlapTokenizerTransfer):
             logger.debug("Computing new embeddings...")
 
             # Do `torch.stack` once outside of loop to save time
-            overlapping_src_embs = [torch.from_numpy(t.source_embedding).to(self.device) for t in overlapping_tokens_lst]
+            overlapping_src_embs = [
+                torch.from_numpy(source_embeddings[t.source[0].id]).to(self.device) for t in overlapping_tokens_lst
+            ]
             overlapping_src_embs = torch.stack(overlapping_src_embs)
 
             for new_token_idx in tqdm(

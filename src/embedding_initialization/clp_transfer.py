@@ -1,5 +1,10 @@
+import json
 import logging
+from pathlib import Path
+
 import numpy as np
+import torch
+from overrides import override
 from tqdm import tqdm
 
 from transformers import (
@@ -55,9 +60,11 @@ class CLPTokenizerTransfer(OverlapTokenizerTransfer):
         self.helper_tokenizer = AutoTokenizer.from_pretrained(self.helper_tokenizer_name_or_path)
         self.helper_embeddings = self.helper_model.get_input_embeddings().weight.detach().numpy()
         self.helper_token_to_idx = {t: i for t, i in self.helper_tokenizer.get_vocab().items()}
+        self.helper_output_embeddings = self.helper_model.get_output_embeddings().weight.detach().numpy()
 
         self.transfer_method = "clp"
 
+    @override
     def save_parameters_to_dict(self):
         """
         Method that saves the parameters of the CLPTokenizerTransfer object to a dictionary.
@@ -69,18 +76,21 @@ class CLPTokenizerTransfer(OverlapTokenizerTransfer):
         parameters["helper_tokenizer_name_or_path"] = self.helper_tokenizer_name_or_path
         return parameters
 
-    def initialize_embeddings(self, **kwargs):
+    @override
+    def initialize_embeddings(self, source_embeddings, helper_embeddings, **kwargs):
         """
         Method that initializes the embeddings of a LM with a target tokenizer given a source LM.
         Leverages overlap between the source vocabulary and the target vocabulary to directly copy source embeddings
         and uses a helper model to initialize the rest.
 
+        :param source_embeddings: The source embeddings (either the input embeddings or the output embeddings)
+        :param helper_embeddings: The helper embeddings (either the input embeddings or the output embeddings)
         :param kwargs: no kwargs
 
         :return: The initialized embedding matrix
         """
         logger.info("(1/2) Create random fallback matrix for target embeddings and copy source embeddings for overlapping tokens...")
-        target_embeddings = super().initialize_embeddings(**kwargs)
+        target_embeddings = super().initialize_embeddings(source_embeddings=source_embeddings, **kwargs)
 
         logger.info("(2/2) Initialize the rest based on the overlap and the helper embeddings with the CLP method")
         if self.missing_tokens:
@@ -95,10 +105,10 @@ class CLPTokenizerTransfer(OverlapTokenizerTransfer):
             overlapping_tokens_idxs = [
                 overlapping_token_info.source[0].id for t, overlapping_token_info in self.overlapping_tokens
             ]
-            overlapping_token_vecs = self.source_embeddings[overlapping_tokens_idxs, :]
+            overlapping_token_vecs = source_embeddings[overlapping_tokens_idxs, :]
 
-            helper_missing_tokens_vecs = self.helper_embeddings[missing_tokens_idxs, :]
-            helper_overlapping_token_vecs = self.helper_embeddings[overlapping_tokens_target_idxs, :]
+            helper_missing_tokens_vecs = helper_embeddings[missing_tokens_idxs, :]
+            helper_overlapping_token_vecs = helper_embeddings[overlapping_tokens_target_idxs, :]
 
             # Calculate similarities for each pair of missing and overlapping token embeddings
             sims = cosine_similarity(helper_missing_tokens_vecs, helper_overlapping_token_vecs)
@@ -118,3 +128,40 @@ class CLPTokenizerTransfer(OverlapTokenizerTransfer):
 
         logger.info(f"Initialized {self.cleverly_initialized_tokens}/{len(self.target_tokens)} tokens with the CLP method.")
         return target_embeddings
+
+    @override
+    def transfer(self, **kwargs):
+        """
+        Method that creates a new LM model with transferred embeddings.
+        :param kwargs: no kwargs
+
+        :return: A new in_domain model
+        """
+
+        target_embeddings = self.initialize_embeddings(
+            source_embeddings=self.source_embeddings,
+            helper_embeddings=self.helper_embeddings,
+            **kwargs
+        )
+
+        target_model = self.source_model
+        target_model.resize_token_embeddings(len(self.target_tokenizer))
+        target_model.get_input_embeddings().weight.data = torch.from_numpy(target_embeddings)
+
+        # For models with separate embedding and unembedding matrix we need to repeat the process
+        # for the unembedding matrix
+        if not target_model.config.tie_word_embeddings:
+            target_output_embeddings = self.initialize_embeddings(
+                source_embeddings=self.source_output_embeddings,
+                helper_embeddings=self.helper_output_embeddings,
+                **kwargs
+            )
+            target_model.get_output_embeddings().weight.data = torch.from_numpy(target_output_embeddings)
+
+        if self.target_model_path:
+            self.target_tokenizer.save_pretrained(self.target_model_path)
+            target_model.save_pretrained(self.target_model_path)
+            with open(Path(self.target_model_path) / "transfer_information.json", "w") as f:
+                information_dict = self.save_parameters_to_dict()
+                json.dump(information_dict, f, indent=2)
+        return target_model

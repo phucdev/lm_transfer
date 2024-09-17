@@ -11,6 +11,7 @@ lxml~=5.2.1
 nltk~=3.8.1
 numba~=0.59.1
 numpy~=1.26.4
+overrides~=7.7.0
 plotly~=5.23.0
 regex~=2024.4.16
 requests~=2.32.3

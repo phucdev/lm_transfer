@@ -5,6 +5,7 @@ import torch
 import logging
 import math
 import numpy as np
+from overrides import override
 from tqdm import tqdm
 
 from transformers import (
@@ -49,11 +50,21 @@ class TokenizerTransfer:
             self.source_model = AutoModelForMaskedLM.from_pretrained(source_model_name_or_path)
         else:
             self.source_model = AutoModelForCausalLM.from_pretrained(source_model_name_or_path)
+        self.source_tokens = self.source_tokenizer.get_vocab()
         self.source_embeddings = self.source_model.get_input_embeddings().weight.detach().numpy()
+        self.source_output_embeddings = self.source_model.get_output_embeddings().weight.detach().numpy()
         self.source_token_to_idx = {t: i for t, i in self.source_tokenizer.get_vocab().items()}
         self.target_tokenizer = AutoTokenizer.from_pretrained(target_tokenizer_name_or_path)
         self.target_tokens = self.target_tokenizer.get_vocab()
         self.target_token_to_idx = {t: i for t, i in self.target_tokenizer.get_vocab().items()}
+
+        if "roberta" in source_model_name_or_path:
+            self.source_output_bias = self.source_model.lm_head.bias.detach().numpy()
+        elif "bert" in source_model_name_or_path:
+            self.source_output_bias = self.source_model.cls.predictions.decoder.bias.detach().numpy()
+        else:
+            # self.source_output_bias = self.source_model.get_output_embeddings().bias.detach().numpy()
+            self.source_output_bias = None
 
         # Information about the transfer
         self.overlap_based_initialized_tokens = 0
@@ -74,38 +85,16 @@ class TokenizerTransfer:
         }
         return parameters_dict
 
-    def initialize_embeddings(self, **kwargs):
+    def initialize_embeddings(self, source_embeddings, **kwargs):
         """
         Method that initializes the embeddings of a LM with a target tokenizer given a source LM.
 
+        :param source_embeddings: The source embeddings (either the input embeddings or the output embeddings)
         :param kwargs: no kwargs
 
         :return: The initialized embedding matrix
         """
         raise NotImplementedError
-
-
-    def update_model_embeddings(self, in_matrix, **kwargs):
-        """
-        Method that replaces the embeddings of a given LM with in_matrix.
-
-        :param in_matrix: (2-d np.ndarray) The new embedding matrix.
-        :param kwargs: no kwargs
-
-        :return: A new LM model with replaced embeddings
-        """
-
-        # Change the model's embedding matrix
-        target_model = self.source_model
-        target_model.resize_token_embeddings(len(self.target_tokenizer))
-        target_model.get_input_embeddings().weight.data = torch.from_numpy(in_matrix)
-
-        tie_weights = kwargs.get('tie_weights', False)
-        if tie_weights:
-            # Tie the model's weights
-            target_model.tie_weights()
-
-        return target_model
 
     def transfer(self, **kwargs):
         """
@@ -115,8 +104,20 @@ class TokenizerTransfer:
         :return: A new in_domain model
         """
 
-        in_matrix = self.initialize_embeddings(**kwargs)
-        target_model = self.update_model_embeddings(in_matrix, **kwargs)
+        target_embeddings = self.initialize_embeddings(source_embeddings=self.source_embeddings, **kwargs)
+
+        target_model = self.source_model
+        target_model.resize_token_embeddings(len(self.target_tokenizer))
+        target_model.get_input_embeddings().weight.data = torch.from_numpy(target_embeddings)
+
+        # For models with separate embedding and unembedding matrix we need to repeat the process
+        # for the unembedding matrix
+        if not target_model.config.tie_word_embeddings:
+            target_output_embeddings = self.initialize_embeddings(
+                source_embeddings=self.source_output_embeddings,
+                **kwargs
+            )
+            target_model.get_output_embeddings().weight.data = torch.from_numpy(target_output_embeddings)
 
         if self.target_model_path:
             self.target_tokenizer.save_pretrained(self.target_model_path)
@@ -146,6 +147,7 @@ class RandomInitializationTokenizerTransfer(TokenizerTransfer):
         self.init_method = init_method
         self.transfer_method = "random_initialization"
 
+    @override
     def save_parameters_to_dict(self):
         parameters_dict = super().save_parameters_to_dict()
         parameters_dict["init_method"] = self.init_method
@@ -167,46 +169,48 @@ class RandomInitializationTokenizerTransfer(TokenizerTransfer):
         std = math.sqrt(2 / (5 * dim))
         return torch.nn.init.normal_(tensor, mean=0.0, std=std)
 
-    def initialize_random_embeddings(self):
+    def initialize_random_embeddings(self, source_embeddings):
         if self.init_method == "smart":
             target_embeddings = np.random.normal(
-                np.mean(self.source_embeddings, axis=0),
-                np.std(self.source_embeddings, axis=0),
+                np.mean(source_embeddings, axis=0),
+                np.std(source_embeddings, axis=0),
                 (
                     len(self.target_tokens),
-                    self.source_embeddings.shape[1]
+                    source_embeddings.shape[1]
                 )
             )
         elif self.init_method == "normal":
             # Optional: RAMEN uses a mean=0 and std=emb_dim ** -0.5
             target_embeddings = np.random.normal(
                 size=(len(self.target_tokens),
-                self.source_embeddings.shape[1])
+                source_embeddings.shape[1])
             )
         elif self.init_method == "xavier":
             target_embeddings = self.xavier_normal(
                 torch.empty(len(self.target_tokens),
-                self.source_embeddings.shape[1])
+                source_embeddings.shape[1])
             ).numpy()
         elif self.init_method == "small_init":
             target_embeddings = self.small_init(
                 torch.empty(len(self.target_tokens),
-                self.source_embeddings.shape[1]),
-                self.source_embeddings.shape[1]
+                source_embeddings.shape[1]),
+                source_embeddings.shape[1]
             ).numpy()
         else:
             raise ValueError("Invalid initialization method")
         return target_embeddings
 
-    def initialize_embeddings(self, **kwargs):
+    @override
+    def initialize_embeddings(self, source_embeddings, **kwargs):
         """
         Method that randomly initializes the embeddings of a LM with a target tokenizer given a source LM.
 
+        :param source_embeddings: The source embeddings (either the input embeddings or the output embeddings)
         :param kwargs: no kwargs
 
         :return: The initialized embedding matrix
         """
-        target_embeddings = self.initialize_random_embeddings()
+        target_embeddings = self.initialize_random_embeddings(source_embeddings=source_embeddings)
         return target_embeddings
 
 
@@ -241,6 +245,7 @@ class OverlapTokenizerTransfer(RandomInitializationTokenizerTransfer):
 
         self.transfer_method = "overlap_initialization"
 
+    @override
     def save_parameters_to_dict(self):
         parameters_dict = super().save_parameters_to_dict()
         parameters_dict["exact_match_all"] = self.exact_match_all
@@ -275,9 +280,10 @@ class OverlapTokenizerTransfer(RandomInitializationTokenizerTransfer):
         logger.debug(f"Found {len(overlapping_tokens)} overlapping tokens.")
         return overlapping_tokens, missing_tokens
 
-    def copy_overlapping_tokens(self, target_embeddings, return_overlapping_token_indices=True):
+    def copy_overlapping_tokens(self, source_embeddings, target_embeddings, return_overlapping_token_indices=True):
         """
         Method that copies source embeddings for overlapping tokens to the target embeddings.
+        :param source_embeddings:
         :param target_embeddings:
         :param return_overlapping_token_indices:
         :return:
@@ -292,8 +298,7 @@ class OverlapTokenizerTransfer(RandomInitializationTokenizerTransfer):
                                                   desc="Initialize target embeddings for overlapping tokens"):
             target_token_idx = overlapping_token_info.target.id
             source_token_idx = overlapping_token_info.source[0].id
-            overlapping_token_info.source_embedding = self.source_embeddings[source_token_idx]
-            target_embeddings[target_token_idx] = self.source_embeddings[source_token_idx]
+            target_embeddings[target_token_idx] = source_embeddings[source_token_idx]
             overlapping_token_indices.append(target_token_idx)
             if self.fasttext_model is not None:
                 if self.is_very_rare_token(token):
@@ -306,7 +311,14 @@ class OverlapTokenizerTransfer(RandomInitializationTokenizerTransfer):
         else:
             return target_embeddings
 
-    def copy_special_tokens(self, target_embeddings, return_overlapping_token_indices=True):
+    def copy_special_tokens(self, source_embeddings, target_embeddings, return_overlapping_token_indices=True):
+        """
+        Method that copies source embeddings for overlapping special tokens to the target embeddings.
+        :param source_embeddings:
+        :param target_embeddings:
+        :param return_overlapping_token_indices:
+        :return:
+        """
         overlapping_token_indices = []
         if isinstance(self.source_tokenizer, BertTokenizerFast):
             source_tokenizer_special_tokens = get_bert_special_tokens()
@@ -330,7 +342,7 @@ class OverlapTokenizerTransfer(RandomInitializationTokenizerTransfer):
                 if target_k in source_tokenizer_special_tokens:
                     source_v = source_tokenizer_special_tokens[target_k]
                     target_token_idx = self.target_token_to_idx[target_v]
-                    target_embeddings[self.target_token_to_idx[target_v]] = self.source_embeddings[
+                    target_embeddings[self.target_token_to_idx[target_v]] = source_embeddings[
                         self.source_token_to_idx[source_v]]
                     copied_special_tokens.append(
                         (target_v, source_v)
@@ -344,23 +356,31 @@ class OverlapTokenizerTransfer(RandomInitializationTokenizerTransfer):
         else:
             return target_embeddings
 
-    def initialize_embeddings(self, **kwargs):
+    @override
+    def initialize_embeddings(self, source_embeddings, **kwargs):
         """
         Method that initializes the embeddings of a LM with a target tokenizer given a source LM.
         Leverages overlap between the source vocabulary and the target vocabulary to directly copy source embeddings
         and randomly initializes the rest.
 
+        :param source_embeddings: The source embeddings (either the input embeddings or the output embeddings)
         :param kwargs: no kwargs
 
         :return: The initialized embedding matrix
         """
-        target_embeddings = self.initialize_random_embeddings()
+        target_embeddings = self.initialize_random_embeddings(source_embeddings=source_embeddings)
 
         # Get overlapping tokens and missing tokens
         self.overlapping_tokens, self.missing_tokens = self.get_overlapping_tokens()
         # Copy source embeddings for overlapping tokens
-        target_embeddings, overlapping_token_indices = self.copy_overlapping_tokens(target_embeddings)
-        target_embeddings, overlapping_special_token_indices = self.copy_special_tokens(target_embeddings)
+        target_embeddings, overlapping_token_indices = self.copy_overlapping_tokens(
+            source_embeddings=source_embeddings,
+            target_embeddings=target_embeddings,
+        )
+        target_embeddings, overlapping_special_token_indices = self.copy_special_tokens(
+            source_embeddings=source_embeddings,
+            target_embeddings=target_embeddings,
+        )
         for special_token_idx in overlapping_special_token_indices:
             if special_token_idx not in overlapping_token_indices:
                 overlapping_token_indices.append(special_token_idx)

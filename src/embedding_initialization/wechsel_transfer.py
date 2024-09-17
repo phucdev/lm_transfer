@@ -8,6 +8,8 @@ import numpy as np
 
 from pathlib import Path
 from typing import Literal, Optional
+
+from overrides import override
 from scipy.linalg import orthogonal_procrustes
 from sklearn.metrics.pairwise import cosine_similarity
 from gensim.models import Word2Vec
@@ -178,9 +180,12 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
         self.fasttext_target_embeddings = None
         self.source_transform = lambda x: x
         self.target_transform = lambda x: x
+        self.source_subword_embeddings = None
+        self.target_subword_embeddings = None
 
         self.transfer_method = "wechsel"
 
+    @override
     def save_parameters_to_dict(self):
         """
         Method to save all parameters to a dictionary for saving the model configuration
@@ -309,34 +314,44 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
                 raise ValueError("Can not use subword info of model without subword info!")
 
             for i in range(len(tokenizer)):
+                # Uses FastText OOV method to calculate subword embedding: decompose token into n-grams and sum
+                # the embeddings of the n-grams
                 token = tokenizer.decode(i).strip()
 
                 # `get_word_vector` returns zeros if not able to decompose
                 embs_matrix[i] = model.get_word_vector(token)
         else:
+            # TODO: This is not used at the moment. It is mentioned in Appendix D of the paper.
+            #  The embedding of a subword (target token) is defined as the average of the embeddings of words
+            #  that contain the subword in their decomposition weighted by their word frequencies.
             embs = {value: [] for value in tokenizer.get_vocab().values()}
-
+            # Go through each word in the FastText model
             for i, word in tqdm(
                     enumerate(words[:max_n_word_vectors]),
                     total=max_n_word_vectors,
                     disable=not verbose,
             ):
+                # Tokenize the word using the target tokenizer and append the FastText word index to the list of
+                # indices for each token
+                # In this case it is not clear why the token is tokenized twice
                 for tokenized in [
                     tokenizer.encode(word, add_special_tokens=False),
-                    tokenizer.encode(" " + word, add_special_tokens=False),
+                    tokenizer.encode(" " + word, add_special_tokens=False), # TODO: why is this done?
                 ]:
                     for token_id in set(tokenized):
                         embs[token_id].append(i)
 
             for i in range(len(embs_matrix)):
+                # If the token is not in the FastText model, the embedding is set to zero
                 if len(embs[i]) == 0:
                     continue
-
+                # Weight is the relative frequency of the word in the FastText model
+                # Frequency is the number of occurrences of the word in the FastText model
                 weight = np.array([freqs[idx] for idx in embs[i]])
                 weight = weight / weight.sum()
-
+                # For each target token get the vectors for all words whose decomposition contains the token
                 vectors = [model.get_word_vector(words[idx]) for idx in embs[i]]
-
+                # Sources contains the ids of the words whose decomposition contains the token
                 sources[tokenizer.convert_ids_to_tokens([i])[0]] = embs[i]
                 embs_matrix[i] = (np.stack(vectors) * weight[:, np.newaxis]).sum(axis=0)
 
@@ -419,7 +434,8 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
         self.cleverly_initialized_tokens = n_matched
         return target_embeddings, not_found, sources
 
-    def initialize_embeddings(self, **kwargs):
+    @override
+    def initialize_embeddings(self, source_embeddings, **kwargs):
         """
         Method that initializes the embeddings of a LM with a target tokenizer given a source LM.
         Leverages overlap between the source vocabulary and the target vocabulary to directly copy source embeddings
@@ -437,40 +453,46 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
         5. Compute cosine similarity between source and target subword embeddings and initialize target embeddings as
           weighted mean of k nearest source embeddings according to similarity in auxiliary embedding space
 
+        :param source_embeddings: The embeddings of the source language (either the input embeddings or the output embeddings)
         :param kwargs: no kwargs
 
         :return: The initialized embedding matrix
         """
-        target_embeddings = self.initialize_random_embeddings()     # Random initialization
+        target_embeddings = self.initialize_random_embeddings(source_embeddings=source_embeddings)
 
-        logger.info("(1/6) Loading FastText embeddings for source and target languages...")
-        self.load_auxiliary_embeddings()
-        logger.info("(2/6) Compute alignment for word embeddings using Orthogonal Procrustes method...")
-        self.set_embedding_transformations()
+        if self.source_subword_embeddings is not None and self.target_subword_embeddings is not None:
+            # This is the case when we already transferred the source embeddings and are repeating the process
+            # for the source output embeddings. We can simply reuse the FastText subword embeddings.
+            logger.info("Subword embeddings already computed. Skipping computation.")
+        else:
+            logger.info("(1/6) Loading FastText embeddings for source and target languages...")
+            self.load_auxiliary_embeddings()
+            logger.info("(2/6) Compute alignment for word embeddings using Orthogonal Procrustes method...")
+            self.set_embedding_transformations()
 
-        logger.info("(3/6) Compute subword embeddings for source and target languages")
-        source_subword_embeddings, source_subword_to_word = self.get_subword_embeddings_in_word_embedding_space(
-            self.source_tokenizer, self.fasttext_source_embeddings, verbose=self.verbosity == "debug"
-        )
-        target_subword_embeddings, target_subword_to_word = self.get_subword_embeddings_in_word_embedding_space(
-            self.target_tokenizer, self.fasttext_target_embeddings, verbose=self.verbosity == "debug"
-        )
-        logger.info("(4/6) Align source and target subword embeddings using alignment matrix from word embeddings")
-        source_subword_embeddings = self.source_transform(source_subword_embeddings)
-        target_subword_embeddings = self.target_transform(target_subword_embeddings)
-        source_subword_embeddings /= (
-                np.linalg.norm(source_subword_embeddings, axis=1)[:, np.newaxis] + 1e-8
-        )
-        target_subword_embeddings /= (
-                np.linalg.norm(target_subword_embeddings, axis=1)[:, np.newaxis] + 1e-8
-        )
+            logger.info("(3/6) Compute subword embeddings for source and target languages")
+            source_subword_embeddings, source_subword_to_word = self.get_subword_embeddings_in_word_embedding_space(
+                self.source_tokenizer, self.fasttext_source_embeddings, verbose=self.verbosity == "debug"
+            )
+            target_subword_embeddings, target_subword_to_word = self.get_subword_embeddings_in_word_embedding_space(
+                self.target_tokenizer, self.fasttext_target_embeddings, verbose=self.verbosity == "debug"
+            )
+            logger.info("(4/6) Align source and target subword embeddings using alignment matrix from word embeddings")
+            source_subword_embeddings = self.source_transform(source_subword_embeddings)
+            target_subword_embeddings = self.target_transform(target_subword_embeddings)
+            self.source_subword_embeddings /= (
+                    np.linalg.norm(source_subword_embeddings, axis=1)[:, np.newaxis] + 1e-8
+            )
+            self.target_subword_embeddings /= (
+                    np.linalg.norm(target_subword_embeddings, axis=1)[:, np.newaxis] + 1e-8
+            )
         logger.info("(5/6) Calculate target embeddings based on similarities in the auxiliary embedding space")
         target_embeddings, not_found, sources = self.create_target_embeddings(
-            source_subword_embeddings,
-            target_subword_embeddings,
+            self.source_subword_embeddings,
+            self.target_subword_embeddings,
             self.source_tokenizer,
             self.target_tokenizer,
-            self.source_embeddings.copy(),
+            source_embeddings.copy(),
             target_embeddings,
             neighbors=self.neighbors,
             temperature=self.temperature,
@@ -480,7 +502,9 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
 
         logger.info("(6/6) Copy embeddings for overlapping special tokens")
         target_embeddings, overlapping_token_indices = self.copy_special_tokens(
-            target_embeddings, return_overlapping_token_indices=True
+            source_embeddings=source_embeddings,
+            target_embeddings=target_embeddings,
+            return_overlapping_token_indices=True
         )
         self.overlap_based_initialized_tokens = len(overlapping_token_indices)
 

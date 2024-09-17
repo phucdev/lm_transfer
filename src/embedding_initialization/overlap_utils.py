@@ -102,7 +102,7 @@ class NewToken:
 class OverlappingToken:
     source: list[TokenClass]
     target: TokenClass
-    source_embedding: Tensor = None
+    # source_embedding: Tensor = None       #
     auxiliary_embedding: Union[Tensor, np.ndarray] = None
     descriptor: str = ""
     use_for_focus: bool = True

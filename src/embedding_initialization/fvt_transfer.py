@@ -2,6 +2,7 @@ import logging
 import re
 import numpy as np
 
+from overrides import override
 from tqdm import tqdm
 from .tokenizer_transfer import OverlapTokenizerTransfer
 
@@ -47,6 +48,7 @@ class FVTTokenizerTransfer(OverlapTokenizerTransfer):
 
         self.transfer_method = "fvt"
 
+    @override
     def save_parameters_to_dict(self):
         """
         Method that saves the parameters of the FVT transfer method to a dictionary.
@@ -56,7 +58,8 @@ class FVTTokenizerTransfer(OverlapTokenizerTransfer):
         parameters["transfer_method"] = self.transfer_method
         return parameters
 
-    def initialize_embeddings(self, **kwargs):
+    @override
+    def initialize_embeddings(self, source_embeddings, **kwargs):
         """
         Method that initializes the embeddings of a given LM with the source embeddings.
         For target tokens that exist in the source vocabulary, the embeddings are copied from the source model.
@@ -66,12 +69,13 @@ class FVTTokenizerTransfer(OverlapTokenizerTransfer):
         This involves canonicalizing the tokens before matching them.
         Another difference is that we also copy the embeddings of the special tokens from the source model.
 
+        :param source_embeddings: The source embeddings to initialize the target embeddings with.
         :param kwargs: no kwargs
 
         :return: The initialized embedding matrix
         """
         logger.info("(1/2) Create random fallback matrix for target embeddings and copy source embeddings for overlapping tokens...")
-        target_embeddings = super().initialize_embeddings(**kwargs)
+        target_embeddings = super().initialize_embeddings(source_embeddings=source_embeddings, **kwargs)
         ngram_vocab = self.target_tokenizer.ngram_vocab if hasattr(self.target_tokenizer, 'ngram_vocab') else {}
 
         logger.info("(2/2) Initialize target embeddings for missing tokens using FVT method...")
@@ -92,7 +96,7 @@ class FVTTokenizerTransfer(OverlapTokenizerTransfer):
                     )["input_ids"][0]
                 target_token_idx = self.target_token_to_idx[target_token]
                 # TODO instead of averaging, we could use some other method for aggregating the embeddings
-                target_embeddings[target_token_idx] = np.mean(self.source_embeddings[partition_token_idxs], axis=0)
+                target_embeddings[target_token_idx] = np.mean(source_embeddings[partition_token_idxs], axis=0)
                 self.cleverly_initialized_tokens += 1
         logger.info(f"Initialized {self.cleverly_initialized_tokens}({len(self.target_tokens)} target embeddings using FVT method.")
         return target_embeddings

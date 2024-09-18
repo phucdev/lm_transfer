@@ -135,6 +135,7 @@ class RandomInitializationTokenizerTransfer(TokenizerTransfer):
             target_tokenizer_name_or_path: str,
             target_model_path: str = None,
             init_method: str = "smart",
+            seed: int = 42,
             **kwargs
     ):
         """
@@ -142,15 +143,18 @@ class RandomInitializationTokenizerTransfer(TokenizerTransfer):
         :param source_model_name_or_path:
         :param target_tokenizer_name_or_path: Name or path of the target tokenizer
         :param target_model_path: Path to save the transferred model
+        :param seed: Random seed for initialization
         """
         super().__init__(source_model_name_or_path, target_tokenizer_name_or_path, target_model_path, **kwargs)
         self.init_method = init_method
+        self.seed = seed
         self.transfer_method = "random_initialization"
 
     @override
     def save_parameters_to_dict(self):
         parameters_dict = super().save_parameters_to_dict()
         parameters_dict["init_method"] = self.init_method
+        parameters_dict["seed"] = self.seed
         return parameters_dict
 
     @staticmethod
@@ -170,6 +174,8 @@ class RandomInitializationTokenizerTransfer(TokenizerTransfer):
         return torch.nn.init.normal_(tensor, mean=0.0, std=std)
 
     def initialize_random_embeddings(self, source_embeddings):
+        np.random.seed(self.seed)
+        torch.manual_seed(self.seed)
         if self.init_method == "smart":
             target_embeddings = np.random.normal(
                 np.mean(source_embeddings, axis=0),

@@ -1,10 +1,8 @@
 import logging
 import re
-import numpy as np
 import torch
 
 from overrides import override
-from tqdm import tqdm
 from .tokenizer_transfer import OverlapTokenizerTransfer
 
 logging.basicConfig(

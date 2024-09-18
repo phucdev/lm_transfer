@@ -1,6 +1,7 @@
 import logging
 import re
 import numpy as np
+import torch
 
 from overrides import override
 from tqdm import tqdm
@@ -64,39 +65,54 @@ class FVTTokenizerTransfer(OverlapTokenizerTransfer):
         Method that initializes the embeddings of a given LM with the source embeddings.
         For target tokens that exist in the source vocabulary, the embeddings are copied from the source model.
         The rest are tokenized using the source tokenizer and the corresponding source embeddings are averaged.
-        Compared to the original implementation we use the matching strategy of FOCUS (Dobler & de Melo, 2023) to
-        find overlapping tokens between the source and target vocabularies.
-        This involves canonicalizing the tokens before matching them.
-        Another difference is that we also copy the embeddings of the special tokens from the source model.
 
         :param source_embeddings: The source embeddings to initialize the target embeddings with.
         :param kwargs: no kwargs
 
         :return: The initialized embedding matrix
         """
-        logger.info("(1/2) Create random fallback matrix for target embeddings and copy source embeddings for overlapping tokens...")
-        target_embeddings = super().initialize_embeddings(source_embeddings=source_embeddings, **kwargs)
-        ngram_vocab = self.target_tokenizer.ngram_vocab if hasattr(self.target_tokenizer, 'ngram_vocab') else {}
+        # For compatibility with the original code
+        gen_tokenizer = self.source_tokenizer
+        in_tokenizer = self.target_tokenizer
 
-        logger.info("(2/2) Initialize target embeddings for missing tokens using FVT method...")
-        # Initialize the rest by partitioning the target token into source tokens using the source tokenizer
-        # and averaging the source embeddings of tokens in the partition
-        if self.missing_tokens:
-            missing_tokens_list = [token for token, missing_token_info in self.missing_tokens]
+        # tokens_mapping: maps new token indices to old token indices
+        # https://github.com/LeonidasY/fast-vocabulary-transfer/blob/9ecbbf2454cff8a27c298e3efc047c29efd32836/fvt/fvt.py#L12
+        gen_vocab = gen_tokenizer.get_vocab()
+        in_vocab = in_tokenizer.get_vocab()
+        ngram_vocab = in_tokenizer.ngram_vocab if hasattr(in_tokenizer, "ngram_vocab") else {}
 
-            for target_token in tqdm(missing_tokens_list, desc="Initialize target embeddings for missing tokens"):
-                normalized_target_token = re.sub('^(##|Ġ|▁)', '', target_token)
-                if normalized_target_token in ngram_vocab:
-                    partition_token_idxs = self.source_tokenizer(
-                        normalized_target_token.split('‗'), is_split_into_words=True, add_special_tokens=False, return_tensors='pt'
-                    )["input_ids"][0]
+        self.overlap_based_initialized_tokens = 0
+        tokens_map = {}
+        for new_token, new_index in in_vocab.items():
+            if new_token in gen_vocab:
+                # if the same token exists in the old vocabulary, take its embedding
+                old_index = gen_vocab[new_token]
+                tokens_map[new_index] = [old_index]
+                self.overlap_based_initialized_tokens += 1
+            else:
+                # if not, tokenize the new token using the old vocabulary
+                new_token = re.sub('^(##|Ġ|▁)', '', new_token)
+                if new_token in ngram_vocab:
+                    token_partition = gen_tokenizer.tokenize(new_token.split('‗'), is_split_into_words=True)
                 else:
-                    partition_token_idxs = self.source_tokenizer(
-                        normalized_target_token, add_special_tokens=False, return_tensors='pt'
-                    )["input_ids"][0]
-                target_token_idx = self.target_token_to_idx[target_token]
-                # TODO instead of averaging, we could use some other method for aggregating the embeddings
-                target_embeddings[target_token_idx] = np.mean(source_embeddings[partition_token_idxs], axis=0)
-                self.cleverly_initialized_tokens += 1
+                    token_partition = gen_tokenizer.tokenize(new_token)
+
+                tokens_map[new_index] = [gen_vocab[old_token] for old_token in token_partition]
+
+        # embeddings_assignment: assigns the embeddings to the new embedding matrix
+        # https://github.com/LeonidasY/fast-vocabulary-transfer/blob/9ecbbf2454cff8a27c298e3efc047c29efd32836/fvt/fvt.py#L50
+        # originally: gen_model.get_input_embeddings().weight, but we want to use the passed source_embeddings
+        # that can either be the input embeddings or the output embeddings (unembedding matrix)
+        gen_matrix = torch.from_numpy(source_embeddings)
+        in_matrix = torch.zeros(len(tokens_map), gen_matrix.shape[1])
+
+        self.cleverly_initialized_tokens = 0
+        for new_index, old_indices in tokens_map.items():
+            # in the original code: old_embedding = torch.mean(gen_matrix[old_indices], axis=0)
+            old_embedding = torch.mean(gen_matrix[old_indices], dim=0)
+            in_matrix[new_index] = old_embedding
+            self.cleverly_initialized_tokens += 1
+
+        target_embeddings = in_matrix.detach().cpu().numpy()
         logger.info(f"Initialized {self.cleverly_initialized_tokens}({len(self.target_tokens)} target embeddings using FVT method.")
         return target_embeddings

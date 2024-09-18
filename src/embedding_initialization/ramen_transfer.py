@@ -4,13 +4,14 @@ import subprocess
 import os
 import numpy as np
 import torch
+from torch import nn
 
 from tqdm import tqdm
 from pathlib import Path
 from collections import defaultdict, Counter
 from overrides import override
 
-from .tokenizer_transfer import OverlapTokenizerTransfer
+from .tokenizer_transfer import TokenizerTransfer
 from ..utils.download_utils import download, decompress_archive
 
 logging.basicConfig(
@@ -21,7 +22,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class RamenTokenizerTransfer(OverlapTokenizerTransfer):
+class RamenTokenizerTransfer(TokenizerTransfer):
     def __init__(
             self,
             source_model_name_or_path: str,
@@ -49,11 +50,13 @@ class RamenTokenizerTransfer(OverlapTokenizerTransfer):
                eprint = {2002.07306},
          primaryClass = {cs.CL},
         }
-        Steps:
+        Steps in RAMEN according to: https://github.com/alexa/ramen/blob/master/code/demo.sh
         1. Obtain parallel data, e.g. from OpenSubtitles
-        2. Prepare data by tokenizing the text and its translation with the respective tokenizers
-        3. Convert it to a format that fast_align can use: <tokenized source lang text> ||| <tokenized target lang text>
-        4. Run fast_align on the data (forward, reverse and create symmetric alignment)
+        2. Install fast_align
+        3. Prepare vocab/ train a BertWordPiece tokenizer
+        4. Prepare parallel data for fast_align: tokenize the text and its translation with the respective tokenizers
+            and convert it to a format that fast_align can use: <tokenized source lang text> ||| <tokenized target lang text>
+        5. Run fast_align on the data (forward, reverse and create symmetric alignment)
         5. Get the translation probabilities from the alignments
         6. Initialize the target embeddings by averaging the source embeddings of the tokens in the partition based on
            the translation probabilities
@@ -93,6 +96,7 @@ class RamenTokenizerTransfer(OverlapTokenizerTransfer):
     def get_parallel_data(source_language, target_language, data_path, corpus="OpenSubtitles"):
         """
         Method to download parallel data from OPUS for a given source and target language.
+        This is my implementation.
 
         :param source_language: Source language identifier, e.g. en
         :param target_language: Target language identifier, e.g. vi
@@ -129,6 +133,7 @@ class RamenTokenizerTransfer(OverlapTokenizerTransfer):
     def process_batch(self, source_batch, target_batch):
         """
         Method to process a batch of text by tokenizing it with the tokenizer.
+        This is somewhat similar to
         :param source_batch:
         :param target_batch:
         :return: String buffer with the tokenized text in the format
@@ -145,8 +150,11 @@ class RamenTokenizerTransfer(OverlapTokenizerTransfer):
 
     def prepare_data_for_alignment(self, source_file_path, target_file_path, output_path, batch_size=10000):
         """
-        Method to prepare data for alignment by tokenizing the text with the tokenizer and writing it to a file
-        in the format <tokenized source language text> ||| <tokenized target language text>
+        Method to prepare data for alignment by tokenizing the text and its translation with the respective tokenizer
+        and writing it to a file in the format <tokenized source language text> ||| <tokenized target language text>
+        This is somewhat similar to https://github.com/alexa/ramen/blob/master/code/utils/tokenizer.py
+        but with updated code for HuggingFace tokenizers and simultaneous processing of the source and the
+        target language.
         :param source_file_path:
         :param target_file_path:
         :param output_path:
@@ -165,7 +173,15 @@ class RamenTokenizerTransfer(OverlapTokenizerTransfer):
                     target_batch.append(vi_line.strip())
                     if len(source_batch) < batch_size:
                         continue
-                    buffer = self.process_batch(source_batch, target_batch)
+                    buffer = []
+                    en_input_ids_batch = self.source_tokenizer.batch_encode_plus(
+                        source_batch, add_special_tokens=False)["input_ids"]
+                    vi_input_ids_batch = self.target_tokenizer.batch_encode_plus(
+                        target_batch, add_special_tokens=False)["input_ids"]
+                    for en_input_ids, vi_input_ids in zip(en_input_ids_batch, vi_input_ids_batch):
+                        en_tokenized = " ".join(self.source_tokenizer.convert_ids_to_tokens(en_input_ids))
+                        vi_tokenized = " ".join(self.target_tokenizer.convert_ids_to_tokens(vi_input_ids))
+                        buffer.append(f'{en_tokenized} ||| {vi_tokenized}\n')
                     writer.writelines(buffer)
                     source_batch = []
                     target_batch = []
@@ -175,7 +191,10 @@ class RamenTokenizerTransfer(OverlapTokenizerTransfer):
 
     def get_alignment(self, parallel_data_path, output_path):
         """
-        Run fast_align on the data (forward, reverse and create symmetric alignment)
+        Run fast_align on the data (forward, reverse and create symmetric alignment).
+        This essentially runs the three commands from the demo.sh file:
+        https://github.com/alexa/ramen/blob/381182c70cec592f65439f733c1994e8ed727f25/code/demo.sh#L52-L54
+        It skips the alignment if the corresponding files already exist.
 
         :param parallel_data_path: Path to the parallel data file <tokenized source language text> ||| <tokenized target language text>
         :param output_path: Path to save the alignment files
@@ -232,6 +251,16 @@ class RamenTokenizerTransfer(OverlapTokenizerTransfer):
                 subprocess.run(command3, stdout=output_file)
 
     def get_prob_para(self, parallel_data_path, alignment_path, output_path=None):
+        """
+        Collect counts and compute translation probabilities from the alignment.
+        This is the adapted code from:
+        https://github.com/alexa/ramen/blob/381182c70cec592f65439f733c1994e8ed727f25/code/alignment/get_prob_para.py
+        Some of the variable names were changed for clarity.
+        :param parallel_data_path:
+        :param alignment_path:
+        :param output_path:
+        :return:
+        """
         language_pair = f"{self.source_language_identifier}-{self.target_language_identifier}"
         if output_path is None:
             output_path = Path(alignment_path).parent.joinpath(f"translation_probabilities_{language_pair}.pt")
@@ -242,7 +271,7 @@ class RamenTokenizerTransfer(OverlapTokenizerTransfer):
             count = defaultdict(Counter)
             with open(parallel_data_path, "r") as parallel_data_file, open(alignment_path, "r") as alignment_file:
                 for line, alignment in tqdm(zip(parallel_data_file, alignment_file), desc="Collecting counts"):
-                    langs = line.strip().split(' ||| ')
+                    langs = line.strip().split(" ||| ")
                     if len(langs) != 2:
                         continue
                     # An alignment looks something like this: 0-0 1-1 1-2
@@ -274,7 +303,7 @@ class RamenTokenizerTransfer(OverlapTokenizerTransfer):
         :param source_embeddings: The source embeddings to transfer
         :param kwargs: no kwargs
 
-        :return: The initialized embedding matrix
+        :return: The initialized embedding matrix and optionally the bias vector
         """
         if self.translation_probabilities is not None:
             logger.info("Translation probabilities already computed. Skipping alignment and translation probability computation.")
@@ -309,65 +338,57 @@ class RamenTokenizerTransfer(OverlapTokenizerTransfer):
             logger.info(f"# aligned src / tgt: {num_src_per_tgt:.5}")
 
         logger.info("(5/6) Create random fallback matrix and copy embeddings for overlapping special tokens...")
-        target_embeddings = self.initialize_random_embeddings(source_embeddings=source_embeddings)
-        target_embeddings, overlapping_token_indices = self.copy_special_tokens(
-            source_embeddings=source_embeddings,
-            target_embeddings=target_embeddings,
-            return_overlapping_token_indices=True
-        )
-        self.overlap_based_initialized_tokens = len(overlapping_token_indices)
-        self.cleverly_initialized_tokens = len(overlapping_token_indices)
+        # For compatibility with the original RAMEN code
+        src_embs = source_embeddings
+        src_bias = self.source_output_bias
+        src_tokenizer = self.source_tokenizer
+        tgt_tokenizer = self.target_tokenizer
+        prob = self.translation_probabilities
+
+        emb_dim = src_embs.size(1)
+        num_tgt = tgt_tokenizer.get_vocab_size()
+
+        # init with zero
+        tgt_embs = src_embs.new_empty(num_tgt, emb_dim)
+        if src_bias is not None:
+            tgt_bias = src_bias.new_zeros(num_tgt)
+        else:
+            tgt_bias = None
+        nn.init.normal_(tgt_embs, mean=0, std=emb_dim ** -0.5)
+
+        # copy over embeddings of special words
+        self.overlap_based_initialized_tokens = 0
+        for i in src_tokenizer.all_special_ids:
+            tgt_embs[i] = src_embs[i]
+            if tgt_bias is not None:
+                tgt_bias[i] = src_bias[i]
+            self.overlap_based_initialized_tokens += 1
+
+        self.cleverly_initialized_tokens = self.overlap_based_initialized_tokens
 
         logger.info("(6/6) Initializing target embeddings using translation probabilities...")
-        for t, ws in self.translation_probabilities.items():
+        for t, ws in prob.items():
+            # Original is not compatible with FastTokenizers: if not tgt_tokenizer.token_to_id(t): continue
             if not self.target_token_to_idx[t]:
                 continue
 
             px, ix = [], []
             for e, p in ws.items():
                 # get index of the source word e
-                j = self.source_tokenizer.convert_tokens_to_ids(e)
+                j = src_tokenizer.convert_tokens_to_ids(e)
                 ix.append(j)
                 px.append(p)
             px = np.asarray(px)
             # get index of target word t
+            # Original is not compatible with FastTokenizers: ti = tgt_tokenizer.token_to_id(t)
             ti = self.target_token_to_idx[t]
-            target_embeddings[ti] = px @ source_embeddings[ix]
+            tgt_embs[ti] = px @ source_embeddings[ix]
             self.cleverly_initialized_tokens += 1
-            # tgt_bias[ti] = px.dot(src_bias[ix])
-            # RAMEN actually sets the bias as well based on the source model bias
+            if tgt_bias is not None:
+                tgt_bias[ti] = px.dot(src_bias[ix])
         logger.info(f"Initialized embeddings for {self.cleverly_initialized_tokens}/{len(self.target_tokens)} tokens "
                     f"using RAMEN method.")
-        return target_embeddings
-
-    def initialize_output_bias(self):
-        """
-        Method that initializes the output bias of a given LM with the source bias and translation probabilities
-        from parallel data.
-
-        :return: The initialized bias vector
-        """
-        if self.source_output_bias is None:
-            logger.info("Source output bias is None. Returning None.")
-            return None
-        else:
-            logger.info("Initializing target output bias using translation probabilities...")
-            target_output_bias = np.zeros_like(self.source_output_bias)
-            for t, ws in self.translation_probabilities.items():
-                if not self.target_token_to_idx[t]:
-                    continue
-
-                px, ix = [], []
-                for e, p in ws.items():
-                    # get index of the source word e
-                    j = self.source_tokenizer.convert_tokens_to_ids(e)
-                    ix.append(j)
-                    px.append(p)
-                px = np.asarray(px)
-                # get index of target word t
-                ti = self.target_token_to_idx[t]
-                target_output_bias[ti] = px.dot(self.source_output_bias[ix])
-            return target_output_bias
+        return tgt_embs.detach().cpu().numpy(), tgt_bias.detach().cpu().numpy() if tgt_bias is not None else None
 
     @override
     def transfer(self, **kwargs):
@@ -377,8 +398,10 @@ class RamenTokenizerTransfer(OverlapTokenizerTransfer):
 
         :return: A new in_domain model
         """
-
-        target_embeddings = self.initialize_embeddings(source_embeddings=self.source_embeddings, **kwargs)
+        target_embeddings, target_output_bias = self.initialize_embeddings(
+            source_embeddings=self.source_embeddings,
+            **kwargs
+        )
 
         target_model = self.source_model
         target_model.resize_token_embeddings(len(self.target_tokenizer))
@@ -387,14 +410,13 @@ class RamenTokenizerTransfer(OverlapTokenizerTransfer):
         # For models with separate embedding and unembedding matrix we need to repeat the process
         # for the unembedding matrix
         if not target_model.config.tie_word_embeddings:
-            target_output_embeddings = self.initialize_embeddings(
+            target_output_embeddings, target_output_bias = self.initialize_embeddings(
                 source_embeddings=self.source_output_embeddings,
                 **kwargs
             )
             target_model.get_output_embeddings().weight.data = torch.from_numpy(target_output_embeddings)
 
-        if self.source_output_bias is not None:
-            target_output_bias = self.initialize_output_bias()
+        if target_output_bias is not None:
             if "roberta" in self.source_model_name_or_path:
                 target_model.lm_head.bias = torch.from_numpy(target_output_bias)
             elif "bert" in self.source_model_name_or_path:

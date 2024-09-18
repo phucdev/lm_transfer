@@ -3,7 +3,7 @@ import re
 import torch
 
 from overrides import override
-from .tokenizer_transfer import OverlapTokenizerTransfer
+from .tokenizer_transfer import TokenizerTransfer
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
@@ -13,7 +13,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class FVTTokenizerTransfer(OverlapTokenizerTransfer):
+class FVTTokenizerTransfer(TokenizerTransfer):
     def __init__(
             self,
             source_model_name_or_path: str,

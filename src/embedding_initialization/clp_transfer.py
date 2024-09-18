@@ -13,7 +13,7 @@ from transformers import (
     AutoTokenizer
 )
 from sklearn.metrics.pairwise import cosine_similarity
-from .tokenizer_transfer import OverlapTokenizerTransfer
+from .tokenizer_transfer import TokenizerTransfer
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
@@ -22,7 +22,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-class CLPTokenizerTransfer(OverlapTokenizerTransfer):
+class CLPTokenizerTransfer(TokenizerTransfer):
     def __init__(
             self,
             source_model_name_or_path: str,
@@ -30,6 +30,7 @@ class CLPTokenizerTransfer(OverlapTokenizerTransfer):
             helper_model_name_or_path: str,
             helper_tokenizer_name_or_path: str = None,
             target_model_path: str = None,
+            seed: int = 42,
             **kwargs
     ):
         """
@@ -47,11 +48,11 @@ class CLPTokenizerTransfer(OverlapTokenizerTransfer):
         :param target_model_path:
         :param helper_model_name_or_path:
         :param helper_tokenizer_name_or_path:
+        :param seed:
         """
         super().__init__(source_model_name_or_path, target_tokenizer_name_or_path, target_model_path, **kwargs)
         self.helper_model_name_or_path = helper_model_name_or_path
         self.helper_tokenizer_name_or_path = helper_tokenizer_name_or_path if helper_tokenizer_name_or_path else helper_model_name_or_path
-
 
         if "bert" in self.source_model_name_or_path:
             self.helper_model = AutoModelForMaskedLM.from_pretrained(self.helper_model_name_or_path)
@@ -61,6 +62,7 @@ class CLPTokenizerTransfer(OverlapTokenizerTransfer):
         self.helper_embeddings = self.helper_model.get_input_embeddings().weight.detach().numpy()
         self.helper_token_to_idx = {t: i for t, i in self.helper_tokenizer.get_vocab().items()}
         self.helper_output_embeddings = self.helper_model.get_output_embeddings().weight.detach().numpy()
+        self.seed = seed
 
         self.transfer_method = "clp"
 
@@ -74,6 +76,7 @@ class CLPTokenizerTransfer(OverlapTokenizerTransfer):
         parameters = super().save_parameters_to_dict()
         parameters["helper_model_name_or_path"] = self.helper_model_name_or_path
         parameters["helper_tokenizer_name_or_path"] = self.helper_tokenizer_name_or_path
+        parameters["seed"] = self.seed
         return parameters
 
     @override
@@ -89,44 +92,77 @@ class CLPTokenizerTransfer(OverlapTokenizerTransfer):
 
         :return: The initialized embedding matrix
         """
-        logger.info("(1/2) Create random fallback matrix for target embeddings and copy source embeddings for overlapping tokens...")
-        target_embeddings = super().initialize_embeddings(source_embeddings=source_embeddings, **kwargs)
+        # Overlapping tokens
+        target_tokens = set(self.helper_tokenizer.get_vocab().keys())
+        source_tokens = set(self.source_tokenizer.get_vocab().keys())
 
-        logger.info("(2/2) Initialize the rest based on the overlap and the helper embeddings with the CLP method")
-        if self.missing_tokens:
-            missing_tokens_idxs = [missing_token_info.target.id for token, missing_token_info in self.missing_tokens]
-            overlapping_tokens_source_idxs = []
-            overlapping_tokens_target_idxs = []
-            for token, overlapping_token_info in self.overlapping_tokens:
-                target_token_idx = overlapping_token_info.target.id
-                source_token_idx = overlapping_token_info.source[0].id
-                overlapping_tokens_source_idxs.append(source_token_idx)
-                overlapping_tokens_target_idxs.append(target_token_idx)
-            overlapping_tokens_idxs = [
-                overlapping_token_info.source[0].id for t, overlapping_token_info in self.overlapping_tokens
-            ]
-            overlapping_token_vecs = source_embeddings[overlapping_tokens_idxs, :]
+        overlapping_tokens = target_tokens & source_tokens
+        missing_tokens = target_tokens - source_tokens
 
-            helper_missing_tokens_vecs = helper_embeddings[missing_tokens_idxs, :]
-            helper_overlapping_token_vecs = helper_embeddings[overlapping_tokens_target_idxs, :]
+        missing_tokens_list = list(missing_tokens)
+        overlapping_tokens_list = list(overlapping_tokens)
 
-            # Calculate similarities for each pair of missing and overlapping token embeddings
+        logger.info(f'{len(overlapping_tokens)=}; {len(missing_tokens)=}')
+
+        if not overlapping_tokens:
+            raise ValueError("No overlapping tokens found")
+
+        source_token_to_idx = {t: i for t, i in self.source_tokenizer.get_vocab().items()}
+        # target_token_to_idx = {t: i for t, i in target_tokenizer.get_vocab().items()}
+        helper_token_to_idx = {t: i for t, i in self.helper_tokenizer.get_vocab().items()}
+
+        overlapping_tokens_idxs = [source_token_to_idx[t] for t in overlapping_tokens_list]
+        overlapping_token_vecs = source_embeddings[overlapping_tokens_idxs, :]
+
+        logger.info(f"{overlapping_token_vecs.shape=}")
+
+        # Target embeddings
+
+        # Random init target embeddings with mean+std of source embeddings
+        np.random.seed(self.seed)
+        target_embeddings = np.random.normal(
+            np.mean(source_embeddings, axis=0),
+            np.std(source_embeddings, axis=0),
+            (
+                len(target_tokens),
+                source_embeddings.shape[1]
+            )
+        )
+
+        # Set overlapping tokens
+        self.overlap_based_initialized_tokens = 0
+        for t in overlapping_tokens:
+            target_embeddings[helper_token_to_idx[t]] = source_embeddings[source_token_to_idx[t]]
+            self.overlap_based_initialized_tokens += 1
+        self.cleverly_initialized_tokens = self.overlap_based_initialized_tokens
+
+        if missing_tokens:
+
+            helper_missing_tokens_vecs = helper_embeddings[[helper_token_to_idx[t] for t in missing_tokens_list], :]
+            helper_overlapping_token_vecs = helper_embeddings[[helper_token_to_idx[t] for t in overlapping_tokens_list],
+                                            :]
+
+            # Similarities for missing tokens
             sims = cosine_similarity(helper_missing_tokens_vecs, helper_overlapping_token_vecs)
 
             # similar = 1 => high weight
             # dissimilar = 0 => low weight
 
-            for ti, helper_token_idx in enumerate(tqdm(missing_tokens_idxs, desc="Initialize target embeddings for missing tokens")):
+            for ti, t in enumerate(tqdm(missing_tokens_list)):  # 1:14hrs (12min with batch sim)
                 # distances to overlapping tokens
                 token_sims = sims[ti]
                 norm_sims = token_sims / token_sims.sum()
 
                 # weighted average of overlapping token embeddings with weight from similarity in helper token embedding space
                 target_vec = np.average(overlapping_token_vecs, axis=0, weights=norm_sims)
-                target_embeddings[helper_token_idx] = target_vec
+                target_embeddings[helper_token_to_idx[t]] = target_vec
                 self.cleverly_initialized_tokens += 1
+        else:
+            logger.warning("No missing tokens")
 
-        logger.info(f"Initialized {self.cleverly_initialized_tokens}/{len(self.target_tokens)} tokens with the CLP method.")
+        logger.info(
+            f"Initialized {self.cleverly_initialized_tokens}/{len(self.target_tokens)} tokens with the CLP method."
+        )
         return target_embeddings
 
     @override

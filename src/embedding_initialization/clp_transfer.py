@@ -119,7 +119,6 @@ class CLPTokenizerTransfer(TokenizerTransfer):
         # Target embeddings
 
         # Random init target embeddings with mean+std of source embeddings
-        np.random.seed(self.seed)
         target_embeddings = np.random.normal(
             np.mean(source_embeddings, axis=0),
             np.std(source_embeddings, axis=0),
@@ -173,7 +172,7 @@ class CLPTokenizerTransfer(TokenizerTransfer):
 
         :return: A new in_domain model
         """
-
+        np.random.seed(self.seed)
         target_embeddings = self.initialize_embeddings(
             source_embeddings=self.source_embeddings,
             helper_embeddings=self.helper_embeddings,

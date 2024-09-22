@@ -32,6 +32,7 @@ class RamenTokenizerTransfer(TokenizerTransfer):
             target_language_identifier: str,
             target_model_path: str = None,
             corpus: str = "OpenSubtitles",
+            seed: int = 42,
             **kwargs
     ):
         """
@@ -68,6 +69,7 @@ class RamenTokenizerTransfer(TokenizerTransfer):
         :param target_language_identifier: Target language identifier, e.g. vi
         :param target_model_path:
         :param corpus: Name of the corpus to download parallel data from, e.g. OpenSubtitles or CCMatrix
+        :param seed: Random seed for reproducibility
         """
         super().__init__(source_model_name_or_path, target_tokenizer_name_or_path, target_model_path, **kwargs)
         self.aligned_data_path = aligned_data_path
@@ -75,6 +77,7 @@ class RamenTokenizerTransfer(TokenizerTransfer):
         self.target_language_identifier = target_language_identifier
         self.corpus = corpus
         self.translation_probabilities = None
+        self.seed = seed
 
     @override
     def save_parameters_to_dict(self):
@@ -88,7 +91,8 @@ class RamenTokenizerTransfer(TokenizerTransfer):
             "aligned_data_path": self.aligned_data_path,
             "source_language_identifier": self.source_language_identifier,
             "target_language_identifier": self.target_language_identifier,
-            "corpus": self.corpus
+            "corpus": self.corpus,
+            "seed": self.seed,
         })
         return params
 
@@ -398,6 +402,7 @@ class RamenTokenizerTransfer(TokenizerTransfer):
 
         :return: A new in_domain model
         """
+        torch.manual_seed(self.seed)
         target_embeddings, target_output_bias = self.initialize_embeddings(
             source_embeddings=self.source_embeddings,
             **kwargs

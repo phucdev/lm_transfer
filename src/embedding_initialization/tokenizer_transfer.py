@@ -174,8 +174,6 @@ class RandomInitializationTokenizerTransfer(TokenizerTransfer):
         return torch.nn.init.normal_(tensor, mean=0.0, std=std)
 
     def initialize_random_embeddings(self, source_embeddings):
-        np.random.seed(self.seed)
-        torch.manual_seed(self.seed)
         if self.init_method == "smart":
             target_embeddings = np.random.normal(
                 np.mean(source_embeddings, axis=0),
@@ -218,6 +216,12 @@ class RandomInitializationTokenizerTransfer(TokenizerTransfer):
         """
         target_embeddings = self.initialize_random_embeddings(source_embeddings=source_embeddings)
         return target_embeddings
+
+    @override
+    def transfer(self, **kwargs):
+        np.random.seed(self.seed)
+        torch.manual_seed(self.seed)
+        return super().transfer(**kwargs)
 
 
 class OverlapTokenizerTransfer(RandomInitializationTokenizerTransfer):

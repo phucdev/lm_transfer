@@ -263,15 +263,17 @@ class OverlapTokenizerTransfer(RandomInitializationTokenizerTransfer):
         parameters_dict["fuzzy_match_all"] = self.fuzzy_match_all
         return parameters_dict
 
-    def is_very_rare_token(self, token):
+    def is_very_rare_token(self, token, fasttext_model=None):
         """
         We want to filter out some "bad" tokens.
         These are tokens that are so rare that they did not get an embedding in the fasttext model.
         If using pretrained word embeddings, these are tokens where no subwords are part of the pretrained word fasttext model.
         These tokens will be initialized with a random embedding.
         """
-        if self.fasttext_model is not None:
-            return token not in self.fasttext_model or np.absolute(self.fasttext_model[token]).sum() == 0
+        if fasttext_model is None:
+            fasttext_model = self.fasttext_model
+        if fasttext_model is not None:
+            return token not in fasttext_model or np.absolute(fasttext_model[token]).sum() == 0
         else:
             return False
 

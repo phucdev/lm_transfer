@@ -17,7 +17,7 @@ from gensim.models import Word2Vec
 from tqdm import tqdm
 from functools import partial
 from datasets import load_dataset
-from .tokenizer_transfer import TokenizerTransfer
+from .tokenizer_transfer import OverlapTokenizerTransfer
 from ..utils.download_utils import download, decompress_archive as gunzip
 
 
@@ -257,7 +257,7 @@ def load_embeddings(identifier: str, verbose=True, aligned=False):
     return fasttext.load_model(str(path))
 
 
-class WechselTokenizerTransfer(TokenizerTransfer):
+class WechselTokenizerTransfer(OverlapTokenizerTransfer):
     def __init__(
             self,
             source_model_name_or_path: str,
@@ -266,7 +266,7 @@ class WechselTokenizerTransfer(TokenizerTransfer):
             bilingual_dictionary: Optional[str] = None,
             source_language_identifier: Optional[str] = None,
             target_language_identifier: Optional[str] = None,
-            align_strategy: str = "bilingual_dictionary",
+            align_strategy: Optional[str] = "bilingual_dictionary",
             use_subword_info: bool = True,
             max_n_word_vectors: Optional[int] = None,
             neighbors: int = 10,
@@ -279,6 +279,8 @@ class WechselTokenizerTransfer(TokenizerTransfer):
             fasttext_model_epochs: int = 3,
             fasttext_model_dim: int = 100,
             fasttext_model_min_count: int = 10,
+            leverage_overlap: bool = False,
+            overwrite_with_overlap: bool = False,
             processes: Optional[int] = None,
             seed: int = 42,
             device="cpu",
@@ -331,6 +333,8 @@ class WechselTokenizerTransfer(TokenizerTransfer):
         :param fasttext_model_epochs: Number of epochs if training a custom fasttext model. Defaults to 3.
         :param fasttext_model_dim: Dimension size if training a custom fasttext model. Defaults to 100.
         :param fasttext_model_min_count: Minimum number of occurrences for a token to be included if training a custom fasttext model. Defaults to 10.
+        :param leverage_overlap: Whether to leverage overlap between source and target tokens for initialization. Defaults to False.
+        :param overwrite_with_overlap: Whether to overwrite the initialized embeddings from WECHSEL with the overlap-based initialization. Defaults to False.
         :param processes: Number of processes for parallelized workloads. Defaults to None, which uses heuristics based on available hardware.
         :param seed: Defaults to 42.
         :param device: Defaults to "cpu".
@@ -345,8 +349,6 @@ class WechselTokenizerTransfer(TokenizerTransfer):
         self.max_n_word_vectors = max_n_word_vectors
         self.neighbors = neighbors
         self.temperature = temperature
-        # Additional fasttext parameters in case we want to train fasttext embeddings from scratch.
-        # Those are not used at the moment.
         self.auxiliary_embedding_mode = auxiliary_embedding_mode
         self.source_training_data_path = source_training_data_path
         self.target_training_data_path = target_training_data_path
@@ -355,7 +357,8 @@ class WechselTokenizerTransfer(TokenizerTransfer):
         self.fasttext_model_epochs = fasttext_model_epochs
         self.fasttext_model_dim = fasttext_model_dim
         self.fasttext_model_min_count = fasttext_model_min_count
-
+        self.leverage_overlap = leverage_overlap
+        self.overwrite_with_overlap = overwrite_with_overlap
         self.processes = processes
         self.seed = seed
         self.device = device
@@ -365,11 +368,11 @@ class WechselTokenizerTransfer(TokenizerTransfer):
         # Adapts: https://github.com/CPJKU/wechsel/blob/395e3d446ecc1f000aaf4dea2da2003d16203f0b/wechsel/__init__.py#L350-L422
         fasttext_source_embeddings = WordEmbedding(load_embeddings(
             identifier=self.source_language_identifier,
-            aligned=not self.align_strategy
+            aligned=self.align_strategy is None
         ))
         fasttext_target_embeddings = WordEmbedding(load_embeddings(
             identifier=self.target_language_identifier,
-            aligned=not self.align_strategy
+            aligned=self.align_strategy is None
         ))
         min_dim = min(
             fasttext_source_embeddings.get_dimension(), fasttext_target_embeddings.get_dimension()
@@ -422,6 +425,10 @@ class WechselTokenizerTransfer(TokenizerTransfer):
         :return:
         """
         parameters = super().save_parameters_to_dict()
+        if not self.leverage_overlap:
+            parameters.pop("exact_match_all")
+            parameters.pop("match_symbols")
+            parameters.pop("fuzzy_match_all")
         parameters.update({
             "bilingual_dictionary_path": self.bilingual_dictionary,
             "source_language_identifier": self.source_language_identifier,
@@ -439,22 +446,14 @@ class WechselTokenizerTransfer(TokenizerTransfer):
             "fasttext_model_epochs": self.fasttext_model_epochs,
             "fasttext_model_dim": self.fasttext_model_dim,
             "fasttext_model_min_count": self.fasttext_model_min_count,
+            "leverage_overlap": self.leverage_overlap,
+            "overwrite_with_overlap": self.overwrite_with_overlap,
             "processes": self.processes,
             "seed": self.seed,
             "device": self.device,
             "verbosity": self.verbosity
         })
         return parameters
-
-    def load_auxiliary_embeddings(self):
-        """
-        Method to load fasttext embeddings for source and target languages
-        https://github.com/CPJKU/wechsel/blob/395e3d446ecc1f000aaf4dea2da2003d16203f0b/wechsel/__init__.py#L376-L385
-        Moved to separate function so we only load the fasttext embeddings once for the input embeddings and reuse them
-        for the output embeddings
-        """
-        # This loads pre-trained fasttext embeddings
-
 
     @staticmethod
     def compute_align_matrix_from_dictionary(
@@ -605,7 +604,9 @@ class WechselTokenizerTransfer(TokenizerTransfer):
                         source_tokenizer.vocab[t]
                     ]
                     self.overlap_based_initialized_tokens += 1
-        self.cleverly_initialized_tokens += self.overlap_based_initialized_tokens
+
+        num_sources = len(sources)
+        assert num_sources == n_matched, f"Number of sources ({num_sources}) does not match number of matched tokens ({n_matched})."
 
         return target_matrix, not_found, sources
 
@@ -664,7 +665,27 @@ class WechselTokenizerTransfer(TokenizerTransfer):
             temperature=self.temperature,
         )
         # not_found contains all tokens that could not be matched and whose embeddings were initialized randomly
-        # sources contains the source tokens for each target token whose embeddings were used for initialization
+        # sources contains the source tokens, used weights and similarities for each target token whose
+        # embeddings were used for WECHSEL initialization
+
+        if self.leverage_overlap:
+            # Optional: Get overlapping tokens and missing tokens
+            overlapping_tokens, missing_tokens = self.get_overlapping_tokens()
+            overlapping_token_indices = []
+            if not self.overlapping_tokens:
+                raise ValueError("No overlapping tokens found")
+            # Copy source embeddings for overlapping tokens
+            for token, overlapping_token_info in tqdm(overlapping_tokens,
+                                                      desc="Initialize target embeddings for overlapping tokens"):
+                if token in not_found or self.overwrite_with_overlap:
+                    target_token_idx = overlapping_token_info.target.id
+                    source_token_idx = overlapping_token_info.source[0].id
+                    target_embeddings[target_token_idx] = source_embeddings[source_token_idx]
+                    overlapping_token_indices.append(target_token_idx)
+                    self.overlap_based_initialized_tokens += 1
+                    not_found.remove(token)
+
+        self.cleverly_initialized_tokens += self.overlap_based_initialized_tokens
 
         logger.info(f"Initialized {self.cleverly_initialized_tokens}/{len(self.target_tokens)} tokens using WECHSEL method.")
         return target_embeddings

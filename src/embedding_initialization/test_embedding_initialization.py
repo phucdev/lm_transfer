@@ -55,10 +55,43 @@ def test_wechsel_embedding_initialization():
     transfer_pipeline = WechselTokenizerTransfer(
         source_model_name,
         target_model_name,
-        bilingual_dictionary_path="bilingual_dictionary/MUSE/en-vi.txt",
+        bilingual_dictionary="bilingual_dictionary/MUSE/en-vi.txt",
         source_language_identifier="en",
         target_language_identifier="vi",
         target_model_path="models/test/wechsel_initialization"
+    )
+    target_model = transfer_pipeline.transfer()
+    assert target_model is not None
+
+
+def test_wechsel_aligned_embedding_initialization():
+    source_model_name = "FacebookAI/roberta-base"
+    target_model_name = "phucdev/vi-bpe-culturax-4g-sample"
+    transfer_pipeline = WechselTokenizerTransfer(
+        source_model_name,
+        target_model_name,
+        align_strategy=None,
+        bilingual_dictionary=None,
+        source_language_identifier="en",
+        target_language_identifier="vi",
+        target_model_path="models/test/wechsel_aligned_initialization",
+    )
+    target_model = transfer_pipeline.transfer()
+    assert target_model is not None
+
+
+def test_wechsel_overlap_embedding_initialization():
+    source_model_name = "FacebookAI/roberta-base"
+    target_model_name = "phucdev/vi-bpe-culturax-4g-sample"
+    transfer_pipeline = WechselTokenizerTransfer(
+        source_model_name,
+        target_model_name,
+        bilingual_dictionary="bilingual_dictionary/MUSE/en-vi.txt",
+        source_language_identifier="en",
+        target_language_identifier="vi",
+        target_model_path="models/test/wechsel_overlap_initialization",
+        leverage_overlap=True,
+        overwrite_with_overlap=True
     )
     target_model = transfer_pipeline.transfer()
     assert target_model is not None

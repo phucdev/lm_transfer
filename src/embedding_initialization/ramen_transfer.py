@@ -343,14 +343,15 @@ class RamenTokenizerTransfer(TokenizerTransfer):
 
         logger.info("(5/6) Create random fallback matrix and copy embeddings for overlapping special tokens...")
         # For compatibility with the original RAMEN code
-        src_embs = source_embeddings
-        src_bias = self.source_output_bias
+        src_embs = torch.from_numpy(source_embeddings)
+        src_bias = torch.from_numpy(self.source_output_bias)
         src_tokenizer = self.source_tokenizer
         tgt_tokenizer = self.target_tokenizer
         prob = self.translation_probabilities
 
         emb_dim = src_embs.size(1)
-        num_tgt = tgt_tokenizer.get_vocab_size()
+        # Original not compatible with FastTokenizers: num_tgt = tgt_tokenizer.get_vocab_size()
+        num_tgt = len(tgt_tokenizer.get_vocab())
 
         # init with zero
         tgt_embs = src_embs.new_empty(num_tgt, emb_dim)
@@ -362,10 +363,17 @@ class RamenTokenizerTransfer(TokenizerTransfer):
 
         # copy over embeddings of special words
         self.overlap_based_initialized_tokens = 0
-        for i in src_tokenizer.all_special_ids:
-            tgt_embs[i] = src_embs[i]
-            if tgt_bias is not None:
-                tgt_bias[i] = src_bias[i]
+        # Original does not handle different order of special tokens
+        # for i in src_tokenizer.all_special_ids:
+        #     tgt_embs[i] = src_embs[i]
+        #     if tgt_bias is not None:
+        #         tgt_bias[i] = src_bias[i]
+        for i, t in enumerate(tgt_tokenizer.all_special_tokens):
+            if t in src_tokenizer.all_special_tokens:
+                j = src_tokenizer.convert_tokens_to_ids(t)
+                tgt_embs[i] = src_embs[j]
+                if tgt_bias is not None:
+                    tgt_bias[i] = src_bias[j]
             self.overlap_based_initialized_tokens += 1
 
         self.cleverly_initialized_tokens = self.overlap_based_initialized_tokens
@@ -382,17 +390,17 @@ class RamenTokenizerTransfer(TokenizerTransfer):
                 j = src_tokenizer.convert_tokens_to_ids(e)
                 ix.append(j)
                 px.append(p)
-            px = np.asarray(px)
+            px = torch.tensor(px).to(src_embs.device)
             # get index of target word t
             # Original is not compatible with FastTokenizers: ti = tgt_tokenizer.token_to_id(t)
             ti = self.target_token_to_idx[t]
-            tgt_embs[ti] = px @ source_embeddings[ix]
+            tgt_embs[ti] = px @ src_embs[ix]
             self.cleverly_initialized_tokens += 1
             if tgt_bias is not None:
                 tgt_bias[ti] = px.dot(src_bias[ix])
         logger.info(f"Initialized embeddings for {self.cleverly_initialized_tokens}/{len(self.target_tokens)} tokens "
                     f"using RAMEN method.")
-        return tgt_embs.detach().cpu().numpy(), tgt_bias.detach().cpu().numpy() if tgt_bias is not None else None
+        return tgt_embs, tgt_bias if tgt_bias is not None else None
 
     @override
     def transfer(self, **kwargs):
@@ -410,7 +418,7 @@ class RamenTokenizerTransfer(TokenizerTransfer):
 
         target_model = self.source_model
         target_model.resize_token_embeddings(len(self.target_tokenizer))
-        target_model.get_input_embeddings().weight.data = torch.from_numpy(target_embeddings)
+        target_model.get_input_embeddings().weight.data = target_embeddings
 
         # For models with separate embedding and unembedding matrix we need to repeat the process
         # for the unembedding matrix
@@ -419,20 +427,21 @@ class RamenTokenizerTransfer(TokenizerTransfer):
                 source_embeddings=self.source_output_embeddings,
                 **kwargs
             )
-            target_model.get_output_embeddings().weight.data = torch.from_numpy(target_output_embeddings)
+            target_model.get_output_embeddings().weight.data = target_output_embeddings
 
         if target_output_bias is not None:
             if "roberta" in self.source_model_name_or_path:
-                target_model.lm_head.bias = torch.from_numpy(target_output_bias)
+                target_model.lm_head.bias = nn.Parameter(target_output_bias)
             elif "bert" in self.source_model_name_or_path:
-                target_model.cls.predictions.decoder.bias = torch.from_numpy(target_output_bias)
+                target_model.cls.predictions.decoder.bias = nn.Parameter(target_output_bias)
             else:
                 logger.warning("Could not set output bias. Model type not recognized.")
 
         if self.target_model_path:
             self.target_tokenizer.save_pretrained(self.target_model_path)
             target_model.save_pretrained(self.target_model_path)
-            with open(Path(self.target_model_path) / "transfer_information.json", "w") as f:
+            transfer_info_path = Path(self.target_model_path) / "transfer_information.json"
+            with open(transfer_info_path, "w") as f:
                 information_dict = self.save_parameters_to_dict()
                 json.dump(information_dict, f, indent=2)
         return target_model

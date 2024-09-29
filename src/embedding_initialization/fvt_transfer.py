@@ -90,12 +90,16 @@ class FVTTokenizerTransfer(TokenizerTransfer):
             else:
                 # if not, tokenize the new token using the old vocabulary
                 new_token = re.sub('^(##|Ġ|▁)', '', new_token)
+                # we modified the call to the gen_tokenizer in order to directly get the input_ids
                 if new_token in ngram_vocab:
-                    token_partition = gen_tokenizer.tokenize(new_token.split('‗'), is_split_into_words=True)
+                    token_partition = gen_tokenizer(
+                        new_token.split('‗'), is_split_into_words=True, add_special_tokens=False, return_tensors='pt'
+                    )["input_ids"][0]
                 else:
-                    token_partition = gen_tokenizer.tokenize(new_token)
-
-                tokens_map[new_index] = [gen_vocab[old_token] for old_token in token_partition]
+                    token_partition = gen_tokenizer(
+                        new_token, add_special_tokens=False, return_tensors='pt'
+                    )["input_ids"][0]
+                tokens_map[new_index] = token_partition
 
         # embeddings_assignment: assigns the embeddings to the new embedding matrix
         # https://github.com/LeonidasY/fast-vocabulary-transfer/blob/9ecbbf2454cff8a27c298e3efc047c29efd32836/fvt/fvt.py#L50
@@ -107,6 +111,7 @@ class FVTTokenizerTransfer(TokenizerTransfer):
         self.cleverly_initialized_tokens = 0
         for new_index, old_indices in tokens_map.items():
             # in the original code: old_embedding = torch.mean(gen_matrix[old_indices], axis=0)
+            old_indices = torch.tensor(old_indices, dtype=torch.long)
             old_embedding = torch.mean(gen_matrix[old_indices], dim=0)
             in_matrix[new_index] = old_embedding
             self.cleverly_initialized_tokens += 1

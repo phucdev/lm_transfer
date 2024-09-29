@@ -464,7 +464,6 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
         self.transfer_method = "wechsel"
 
         # Adapts: https://github.com/CPJKU/wechsel/blob/395e3d446ecc1f000aaf4dea2da2003d16203f0b/wechsel/__init__.py#L350-L422
-        # TODO: For the aligned case this process gets killed due to memory issues. We need to find a way to reduce memory usage.
         logger.info(f"Loading fastText embeddings for source language ({self.source_language_identifier})...")
         fasttext_source_embeddings = load_embeddings(
             identifier=self.source_language_identifier,

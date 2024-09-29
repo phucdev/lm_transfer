@@ -4,6 +4,7 @@ import math
 import tempfile
 import multiprocessing
 import nltk
+import gc
 import fasttext
 import fasttext.util
 import numpy as np
@@ -17,6 +18,7 @@ from gensim.models import Word2Vec
 from tqdm import tqdm
 from functools import partial
 from datasets import load_dataset
+from gensim.models import KeyedVectors
 from .tokenizer_transfer import OverlapTokenizerTransfer
 from ..utils.download_utils import download, decompress_archive as gunzip
 
@@ -37,17 +39,87 @@ def softmax(x, axis=-1):
     return np.exp(x) / np.sum(np.exp(x), axis=axis, keepdims=True)
 
 
+def load_vec(file_path: str, maxload: int = None, batch_size: int = 10000, reload_as_kv: bool = True):
+    """
+    Utility function to load fastText embeddings from .vec file.
+    :param file_path: Path to the .vec file.
+    :param maxload: Maximum number of vectors to load.
+    :param batch_size: Batch size for loading vectors.
+    :param reload_as_kv: Whether to export to .kv format and reload the vectors with memory mapping.
+    :return: Dictionary containing the word vectors.
+    """
+    if reload_as_kv:
+        kv_path = str(Path(file_path).with_suffix(".kv"))
+        if Path(kv_path).exists():
+            return KeyedVectors.load(kv_path, mmap="r")
+    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+        # Read the header
+        first_line = f.readline()
+        if len(first_line.split()) == 2:
+            num_vectors, vector_size = map(int, first_line.split())
+        else:
+            # Handle cases without a header
+            num_vectors = None
+            vector_size = len(first_line.strip().split()) - 1
+            f.seek(0)
+        # Create KeyedVectors instance
+        kv = KeyedVectors(vector_size)
+        vocab = []
+        vectors = []
+        for idx, line in tqdm(enumerate(f), desc="Loading vectors", total=num_vectors):
+            tokens = line.rstrip().split(' ')
+            word = tokens[0]
+            vector = np.array(tokens[1:], dtype=np.float32)
+
+            # Store vectors and vocab in batches
+            vocab.append(word)
+            vectors.append(vector)
+
+            # Once the batch size is reached, add the batch of vectors to KeyedVectors
+            if (idx + 1) % batch_size == 0:
+                kv.add_vectors(vocab, np.array(vectors))
+                vocab = []
+                vectors = []
+
+            if maxload is not None and idx + 1 >= maxload:
+                break
+
+        # Add the remaining vectors to KeyedVectors
+        if vocab:
+            kv.add_vectors(vocab, np.array(vectors))
+
+    if reload_as_kv:
+        # By exporting to .kv format and reloading with memory mapping, we can save memory
+        kv_path = str(Path(file_path).with_suffix(".kv"))
+        kv.save(kv_path)
+        del kv
+        gc.collect()
+        kv = KeyedVectors.load(kv_path, mmap="r")
+
+    return kv
+
+
 class WordEmbedding:
     """
     Uniform interface to fastText models and gensim Word2Vec models.
     https://github.com/CPJKU/wechsel/blob/395e3d446ecc1f000aaf4dea2da2003d16203f0b/wechsel/__init__.py#L33-L75
     """
 
-    def __init__(self, model):
+    def __init__(self, model, aligned_vectors=None):
         self.model = model
+        self.aligned_vectors = aligned_vectors
 
         if isinstance(model, fasttext.FastText._FastText):
-            self.kind = "fasttext"
+            if isinstance(aligned_vectors, KeyedVectors):
+                self.kind = "fasttext_aligned"
+                # Store the words and frequencies from original FastText model and release the model
+                # to save memory
+                self.words_and_freqs = self.model.get_words(include_freq=True, on_unicode_error="ignore")
+                self.model = None
+                del model
+                gc.collect()
+            else:
+                self.kind = "fasttext"
         elif isinstance(model, Word2Vec):
             self.kind = "word2vec"
         else:
@@ -63,24 +135,32 @@ class WordEmbedding:
             return self.model.get_words(include_freq=True, on_unicode_error="ignore")
         elif self.kind == "word2vec":
             return self.model.wv.index_to_key, self.model.wv.expandos["count"]
+        elif self.kind == "fasttext_aligned":
+            return self.words_and_freqs
 
     def get_dimension(self):
         if self.kind == "fasttext":
             return self.model.get_dimension()
         elif self.kind == "word2vec":
             return self.model.wv.vector_size
+        elif self.kind == "fasttext_aligned":
+            return self.aligned_vectors.vector_size
 
     def get_word_vector(self, word):
         if self.kind == "fasttext":
             return self.model.get_word_vector(word)
         elif self.kind == "word2vec":
             return self.model.wv[word]
+        elif self.kind == "fasttext_aligned":
+            return self.aligned_vectors[word]
 
     def get_word_id(self, word):
         if self.kind == "fasttext":
             return self.model.get_word_id(word)
         elif self.kind == "word2vec":
             return self.model.wv.key_to_index.get(word, -1)
+        elif self.kind == "fasttext_aligned":
+            return self.aligned_vectors.key_to_index.get(word, -1)
 
 
 def get_subword_embeddings_in_word_embedding_space(
@@ -126,12 +206,12 @@ def get_subword_embeddings_in_word_embedding_space(
                 total=max_n_word_vectors,
                 disable=not verbose,
         ):
-            # Tokenize the word using the target tokenizer and append the FastText word index to the list of
-            # indices for each token
-            # In this case it is not clear why the token is tokenized twice
+            # Tokenize the word both without and with a leading space to capture different tokenizations depending on
+            # the word's position in text (e.g., at the beginning vs. in the middle of a sentence) and append the
+            # FastText word index to the list of indices for each token
             for tokenized in [
                 tokenizer.encode(word, add_special_tokens=False),
-                tokenizer.encode(" " + word, add_special_tokens=False), # TODO: why is this done?
+                tokenizer.encode(" " + word, add_special_tokens=False),
             ]:
                 for token_id in set(tokenized):
                     embs[token_id].append(i)
@@ -186,7 +266,7 @@ def train_embeddings(
 
     if text_path.endswith(".txt"):
         dataset = load_dataset("text", data_files=text_path, split="train")
-    if text_path.endswith(".json") or text_path.endswith(".jsonl"):
+    elif text_path.endswith(".json") or text_path.endswith(".jsonl"):
         dataset = load_dataset("json", data_files=text_path, split="train")
     else:
         raise ValueError(
@@ -214,47 +294,62 @@ def train_embeddings(
     )
 
 
-def load_embeddings(identifier: str, verbose=True, aligned=False):
+def load_embeddings(identifier: str, verbose=True, aligned=False, cache_dir=CACHE_DIR):
     """
     Utility function to download and cache embeddings from https://fasttext.cc.
     https://github.com/CPJKU/wechsel/blob/395e3d446ecc1f000aaf4dea2da2003d16203f0b/wechsel/__init__.py#L184-L211
     I added the option to load aligned embeddings from https://fasttext.cc/docs/en/aligned-vectors.html
+    and modified the function to return a `WordEmbedding` object.
+    I also added a cache_dir argument to specify the directory to cache the embeddings.
 
     Args:
         identifier: 2-letter language code or path to a fasttext model.
         verbose: Whether to print download progress.
         aligned: Whether to download aligned embeddings.
+        cache_dir: Directory to cache the embeddings.
 
     Returns:
-        fastText model loaded from https://fasttext.cc.
+        `WordEmbedding` object.
     """
-    if os.path.exists(identifier):
-        path = Path(identifier)
-    else:
-        logging.info(
-            f"Identifier '{identifier}' does not seem to be a path (file does not exist). Interpreting as language code."
-        )
-        if aligned:
-            path = CACHE_DIR / "pretrained_fasttext" / f"wiki.{identifier}.align.vec"
-
-            if not path.exists():
-                path = download(
-                    f"https://dl.fbaipublicfiles.com/fasttext/vectors-aligned/wiki.{identifier}.align.vec",
-                    CACHE_DIR / "pretrained_fasttext" / f"wiki.{identifier}.align.vec",
-                    verbose=verbose,
-                )
+    if isinstance(cache_dir, str):
+        cache_dir = Path(cache_dir)
+    if not aligned:
+        if os.path.exists(identifier):
+            path = Path(identifier)
         else:
-            path = CACHE_DIR / "pretrained_fasttext" / f"cc.{identifier}.300.bin"
+            logging.info(
+                f"Identifier '{identifier}' does not seem to be a path (file does not exist). Interpreting as language code."
+            )
+            path = cache_dir / "pretrained_fasttext" / f"cc.{identifier}.300.bin"
 
             if not path.exists():
                 path = download(
                     f"https://dl.fbaipublicfiles.com/fasttext/vectors-crawl/cc.{identifier}.300.bin.gz",
-                    CACHE_DIR / "pretrained_fasttext" / f"cc.{identifier}.300.bin.gz",
+                    cache_dir / "pretrained_fasttext" / f"cc.{identifier}.300.bin.gz",
                     verbose=verbose,
                 )
                 path = gunzip(path)
+        return WordEmbedding(fasttext.load_model(str(path)))
+    else:
+        vector_path = cache_dir / "pretrained_fasttext" / f"wiki.{identifier}.align.vec"
+        if not vector_path.exists():
+            vector_path = download(
+                f"https://dl.fbaipublicfiles.com/fasttext/vectors-aligned/wiki.{identifier}.align.vec",
+                cache_dir / "pretrained_fasttext" / f"wiki.{identifier}.align.vec",
+                verbose=verbose,
+            )
+        aligned_vectors = load_vec(str(vector_path))
 
-    return fasttext.load_model(str(path))
+        model_path = cache_dir / "pretrained_fasttext" / f"wiki.{identifier}" / f"wiki.{identifier}.bin"
+        if not model_path.exists():
+            archive_path = download(
+                f"https://dl.fbaipublicfiles.com/fasttext/vectors-wiki/wiki.{identifier}.zip",
+                cache_dir / "pretrained_fasttext" / f"wiki.{identifier}.zip",
+                verbose=verbose,
+            )
+            _ = gunzip(archive_path)
+        model = fasttext.load_model(str(model_path))
+        return WordEmbedding(model, aligned_vectors)
 
 
 class WechselTokenizerTransfer(OverlapTokenizerTransfer):
@@ -279,6 +374,7 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
             fasttext_model_epochs: int = 3,
             fasttext_model_dim: int = 100,
             fasttext_model_min_count: int = 10,
+            cache_dir: str = str(CACHE_DIR),
             leverage_overlap: bool = False,
             overwrite_with_overlap: bool = False,
             processes: Optional[int] = None,
@@ -333,6 +429,7 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
         :param fasttext_model_epochs: Number of epochs if training a custom fasttext model. Defaults to 3.
         :param fasttext_model_dim: Dimension size if training a custom fasttext model. Defaults to 100.
         :param fasttext_model_min_count: Minimum number of occurrences for a token to be included if training a custom fasttext model. Defaults to 10.
+        :param cache_dir: Directory to cache fasttext models and bilingual dictionary. Defaults to `~/.cache/wechsel`.
         :param leverage_overlap: Whether to leverage overlap between source and target tokens for initialization. Defaults to False.
         :param overwrite_with_overlap: Whether to overwrite the initialized embeddings from WECHSEL with the overlap-based initialization. Defaults to False.
         :param processes: Number of processes for parallelized workloads. Defaults to None, which uses heuristics based on available hardware.
@@ -357,6 +454,7 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
         self.fasttext_model_epochs = fasttext_model_epochs
         self.fasttext_model_dim = fasttext_model_dim
         self.fasttext_model_min_count = fasttext_model_min_count
+        self.cache_dir = cache_dir
         self.leverage_overlap = leverage_overlap
         self.overwrite_with_overlap = overwrite_with_overlap
         self.processes = processes
@@ -366,14 +464,19 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
         self.transfer_method = "wechsel"
 
         # Adapts: https://github.com/CPJKU/wechsel/blob/395e3d446ecc1f000aaf4dea2da2003d16203f0b/wechsel/__init__.py#L350-L422
-        fasttext_source_embeddings = WordEmbedding(load_embeddings(
+        # TODO: For the aligned case this process gets killed due to memory issues. We need to find a way to reduce memory usage.
+        logger.info(f"Loading fastText embeddings for source language ({self.source_language_identifier})...")
+        fasttext_source_embeddings = load_embeddings(
             identifier=self.source_language_identifier,
-            aligned=self.align_strategy is None
-        ))
-        fasttext_target_embeddings = WordEmbedding(load_embeddings(
+            aligned=self.align_strategy is None,
+            cache_dir=Path(cache_dir)
+        )
+        logger.info(f"Loading fastText embeddings for target language ({self.target_language_identifier})...")
+        fasttext_target_embeddings = load_embeddings(
             identifier=self.target_language_identifier,
-            aligned=self.align_strategy is None
-        ))
+            aligned=self.align_strategy is None,
+            cache_dir=Path(cache_dir)
+        )
         min_dim = min(
             fasttext_source_embeddings.get_dimension(), fasttext_target_embeddings.get_dimension()
         )
@@ -390,7 +493,7 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
             if not os.path.exists(self.bilingual_dictionary):
                 bilingual_dictionary = download(
                     f"https://raw.githubusercontent.com/CPJKU/wechsel/main/dicts/data/{self.bilingual_dictionary}.txt",
-                    CACHE_DIR / f"{self.bilingual_dictionary}.txt",
+                    Path(self.cache_dir) / f"{self.bilingual_dictionary}.txt",
                 )
             dictionary = []
 
@@ -446,6 +549,7 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
             "fasttext_model_epochs": self.fasttext_model_epochs,
             "fasttext_model_dim": self.fasttext_model_dim,
             "fasttext_model_min_count": self.fasttext_model_min_count,
+            "cache_dir": self.cache_dir,
             "leverage_overlap": self.leverage_overlap,
             "overwrite_with_overlap": self.overwrite_with_overlap,
             "processes": self.processes,
@@ -672,7 +776,7 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
             # Optional: Get overlapping tokens and missing tokens
             overlapping_tokens, missing_tokens = self.get_overlapping_tokens()
             overlapping_token_indices = []
-            if not self.overlapping_tokens:
+            if not overlapping_tokens:
                 raise ValueError("No overlapping tokens found")
             # Copy source embeddings for overlapping tokens
             for token, overlapping_token_info in tqdm(overlapping_tokens,
@@ -683,7 +787,8 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
                     target_embeddings[target_token_idx] = source_embeddings[source_token_idx]
                     overlapping_token_indices.append(target_token_idx)
                     self.overlap_based_initialized_tokens += 1
-                    not_found.remove(token)
+                    if token in not_found:
+                        not_found.remove(token)
 
         self.cleverly_initialized_tokens += self.overlap_based_initialized_tokens
 

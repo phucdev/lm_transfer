@@ -71,6 +71,7 @@ def test_wechsel_aligned_embedding_initialization():
         source_model_name,
         target_model_name,
         align_strategy=None,
+        use_subword_info=False,
         bilingual_dictionary=None,
         source_language_identifier="en",
         target_language_identifier="vi",

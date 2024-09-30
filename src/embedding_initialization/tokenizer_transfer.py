@@ -389,6 +389,7 @@ class OverlapTokenizerTransfer(RandomInitializationTokenizerTransfer):
             source_embeddings=source_embeddings,
             target_embeddings=target_embeddings,
         )
+        # This step is only necessary for transfer between models with different special token formats
         target_embeddings, overlapping_special_token_indices = self.copy_special_tokens(
             source_embeddings=source_embeddings,
             target_embeddings=target_embeddings,

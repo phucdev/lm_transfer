@@ -16,8 +16,12 @@ from transformers import (
     RobertaTokenizerFast,
     XLMRobertaTokenizerFast
 )
-from .overlap_utils import get_overlapping_tokens
-from .special_token_mappings import get_bert_special_tokens, roberta_special_tokens, xlm_roberta_special_tokens
+from lm_transfer.embedding_initialization.overlap_utils import get_overlapping_tokens
+from lm_transfer.embedding_initialization.special_token_mappings import (
+    get_bert_special_tokens,
+    roberta_special_tokens,
+    xlm_roberta_special_tokens
+)
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",

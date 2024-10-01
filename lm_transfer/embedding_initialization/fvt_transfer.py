@@ -3,7 +3,7 @@ import re
 import torch
 
 from overrides import override
-from .tokenizer_transfer import TokenizerTransfer
+from lm_transfer.embedding_initialization.tokenizer_transfer import TokenizerTransfer
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",

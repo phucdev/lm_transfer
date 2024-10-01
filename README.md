@@ -9,6 +9,7 @@ Repo for my master thesis on Cross-lingual transfer of pre-trained language mode
 2. Install the requirements
     ```bash
     pip install -r requirements.txt
+    pip install -e .
     ```
 3. Install fast_align
     ```bash

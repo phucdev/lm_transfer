@@ -13,7 +13,7 @@ from transformers import (
     AutoTokenizer
 )
 from sklearn.metrics.pairwise import cosine_similarity
-from .tokenizer_transfer import TokenizerTransfer
+from lm_transfer.embedding_initialization.tokenizer_transfer import TokenizerTransfer
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",

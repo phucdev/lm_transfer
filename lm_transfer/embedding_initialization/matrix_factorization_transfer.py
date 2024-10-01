@@ -2,9 +2,9 @@ import logging
 import numpy as np
 
 from overrides import override
-from .tokenizer_transfer import OverlapTokenizerTransfer
-from ..utils.utils import perform_factorize
-from ..utils.snmf import SNMF
+from lm_transfer.embedding_initialization.tokenizer_transfer import OverlapTokenizerTransfer
+from lm_transfer.utils.utils import perform_factorize
+from lm_transfer.utils.snmf import SNMF
 
 
 logging.basicConfig(

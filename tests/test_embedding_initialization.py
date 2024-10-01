@@ -1,12 +1,14 @@
-from .tokenizer_transfer import (
+from lm_transfer.embedding_initialization.tokenizer_transfer import (
     RandomInitializationTokenizerTransfer,
     OverlapTokenizerTransfer
 )
-# from .clp_transfer import CLPTokenizerTransfer
-from .fvt_transfer import FVTTokenizerTransfer
-from .wechsel_transfer import WechselTokenizerTransfer
-from .focus_transfer import FocusTokenizerTransfer
-from .ramen_transfer import RamenTokenizerTransfer
+# from lm_transfer.embedding_initialization.clp_transfer import CLPTokenizerTransfer
+from lm_transfer.embedding_initialization.fvt_transfer import FVTTokenizerTransfer
+from lm_transfer.embedding_initialization.wechsel_transfer import WechselTokenizerTransfer
+from lm_transfer.embedding_initialization.focus_transfer import FocusTokenizerTransfer
+from lm_transfer.embedding_initialization.ramen_transfer import RamenTokenizerTransfer
+
+# TODO infer path of script from __file__ and set paths to models and data dynamically
 
 
 def test_random_embedding_initialization():

@@ -7,8 +7,8 @@ from typing import Optional
 from overrides import override
 from tqdm import tqdm
 
-from ..utils.download_utils import download
-from .tokenizer_transfer import OverlapTokenizerTransfer
+from lm_transfer.utils.download_utils import download
+from lm_transfer.embedding_initialization.tokenizer_transfer import OverlapTokenizerTransfer
 
 
 CACHE_DIR = (

@@ -10,9 +10,9 @@ from typing import Literal, Optional, Union, Dict
 from overrides import override
 from tqdm.asyncio import tqdm
 from torch import Tensor
-from .tokenizer_transfer import OverlapTokenizerTransfer
-from .overlap_utils import get_overlapping_tokens, NewToken, OverlappingToken
-from ..training.fasttext_embs import load_target_token_embedding
+from lm_transfer.embedding_initialization.tokenizer_transfer import OverlapTokenizerTransfer
+from lm_transfer.embedding_initialization.overlap_utils import get_overlapping_tokens, NewToken, OverlappingToken
+from lm_transfer.training.fasttext_embs import load_target_token_embedding
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",

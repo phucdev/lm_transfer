@@ -19,8 +19,8 @@ from tqdm import tqdm
 from functools import partial
 from datasets import load_dataset
 from gensim.models import KeyedVectors
-from .tokenizer_transfer import OverlapTokenizerTransfer
-from ..utils.download_utils import download, decompress_archive as gunzip
+from lm_transfer.embedding_initialization.tokenizer_transfer import OverlapTokenizerTransfer
+from lm_transfer.utils.download_utils import download, decompress_archive as gunzip
 
 
 CACHE_DIR = (

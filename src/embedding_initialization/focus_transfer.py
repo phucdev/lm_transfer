@@ -104,7 +104,8 @@ class FocusTokenizerTransfer(OverlapTokenizerTransfer):
         if auxiliary_embedding_mode == "fasttext-tokenlevel":
             if not target_training_data_path and not fasttext_model_path:
                 raise ValueError(
-                    "You need to provide a path to training data or pretrained fasttext model for fasttext-tokenlevel auxiliary embeddings."
+                    "You need to provide a path to training data or pretrained fasttext model for fasttext-tokenlevel "
+                    "auxiliary embeddings."
                 )
             fasttext_model = load_target_token_embedding(
                 target_tokenizer=extend_tokenizer or self.target_tokenizer,
@@ -118,7 +119,8 @@ class FocusTokenizerTransfer(OverlapTokenizerTransfer):
         elif auxiliary_embedding_mode == "fasttext-wordlevel":
             if not language_identifier:
                 raise ValueError(
-                    "You need to provide a language identifier (e.g. de for German) for fasttext-wordlevel auxiliary embeddings."
+                    "You need to provide a language identifier (e.g. de for German) for fasttext-wordlevel auxiliary "
+                    "embeddings."
                 )
             fasttext_model = load_target_token_embedding(
                 target_tokenizer=extend_tokenizer or self.target_tokenizer,
@@ -178,7 +180,8 @@ class FocusTokenizerTransfer(OverlapTokenizerTransfer):
                 overlapping_tokens[token].auxiliary_embedding = fasttext_model[token]
 
         logger.debug(
-            f"Pruned {len(very_rare_overlapping_tokens)} overlapping tokens because they do not have an auxiliary embedding: {very_rare_overlapping_tokens}"
+            f"Pruned {len(very_rare_overlapping_tokens)} overlapping tokens because they do not have an auxiliary "
+            f"embedding: {very_rare_overlapping_tokens}"
         )
 
         # Clean new tokens, mark "bad" tokens for random init
@@ -320,7 +323,8 @@ class FocusTokenizerTransfer(OverlapTokenizerTransfer):
         for ood_new_token in self.random_init_new_tokens:
             target_embeddings[ood_new_token.target.id] = torch.normal(emb_mean, emb_std, generator=self.gen)
         logger.info(
-            f"Initialized {len(self.random_init_new_tokens)} new tokens from N(source_mean, source_std) because they do not have auxiliary embeddings (this is okay if it's not too many)."
+            f"Initialized {len(self.random_init_new_tokens)} new tokens from N(source_mean, source_std) because they "
+            f"do not have auxiliary embeddings (this is okay if it's not too many)."
         )
 
         #######################################################

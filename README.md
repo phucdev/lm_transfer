@@ -4,7 +4,7 @@ Repo for my master thesis on Cross-lingual transfer of pre-trained language mode
 ## Getting started
 1. Clone the repository
     ```bash
-    git clone git@github.com:phucdev/MA-Exploration.git
+    git clone https://github.com/phucdev/lm_transfer.git
     ```
 2. Install the requirements
     ```bash

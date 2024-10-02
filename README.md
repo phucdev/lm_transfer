@@ -21,7 +21,7 @@ Repo for my master thesis on Cross-lingual transfer of pre-trained language mode
 ## Data
 In order to reproduce the [CulturaX](https://huggingface.co/datasets/uonlp/CulturaX) sample for pre-training, you need to run:
 ```bash
-python src/data_utils/get_train_data.py \
+python lm_transfer/data_utils/get_train_data.py \
   --dataset_name=uonlp/CulturaX \
   --dataset_config_name=vi \
   --output_dir=data/culturax_vi \
@@ -33,7 +33,7 @@ python src/data_utils/get_train_data.py \
 You can access the Vietnamese tokenizers on the huggingface hub or reproduce them like so:
 - vi-bpe-culturax-4g-sample (BPE tokenizer trained on 4GB sample of CulturaX): https://huggingface.co/phucdev/vi-bpe-culturax-4g-sample
   ```bash
-    python src/training/train_tokenizer.py \
+    python lm_transfer/training/train_tokenizer.py \
         --dataset_name=data/culturax_vi/train.json \
         --output_dir=tokenizers/vi-bpe-culturax-2048 \
         --original_tokenizer=FacebookAI/roberta-base \
@@ -42,7 +42,7 @@ You can access the Vietnamese tokenizers on the huggingface hub or reproduce the
     ```
 - vi-spm-culturax-4g-sample (SentencePiece + Unigram LM tokenizer trained on 4GB sample of CulturaX): https://huggingface.co/phucdev/vi-spm-culturax-4g-sample
   ```bash
-    python src/training/train_tokenizer.py \
+    python lm_transfer/training/train_tokenizer.py \
         --dataset_name=uonlp/CulturaX \
         --dataset_config_name=vi \
         --output_dir=tokenizers/vi-bpe-culturax-4g-sample \
@@ -51,7 +51,7 @@ You can access the Vietnamese tokenizers on the huggingface hub or reproduce the
     ```
 - vi-bpe-culturax-2048 (BPE tokenizer trained on CulturaX examples with <= 2048 bytes): https://huggingface.co/phucdev/vi-bpe-culturax-2048
   ```bash
-    python src/training/train_tokenizer.py \
+    python lm_transfer/training/train_tokenizer.py \
         --dataset_name=uonlp/CulturaX \
         --dataset_config_name=vi \
         --output_dir=tokenizers/vi-bpe-culturax-2048 \
@@ -61,7 +61,7 @@ You can access the Vietnamese tokenizers on the huggingface hub or reproduce the
     ```
 - vi-spm-culturax-2048 (SentencePiece + Unigram LM tokenizer trained on CulturaX examples with <= 2048 bytes): https://huggingface.co/phucdev/vi-spm-culturax-2048
   ```bash
-    python src/training/train_tokenizer.py \
+    python lm_transfer/training/train_tokenizer.py \
         --dataset_name=uonlp/CulturaX \
         --dataset_config_name=vi \
         --output_dir=tokenizers/vi-spm-culturax-2048 \
@@ -73,7 +73,7 @@ You can access the Vietnamese tokenizers on the huggingface hub or reproduce the
 ## Embedding Initialization/Tokenizer Transfer
 
 ### RAMEN (Tran, 2020)
-The script: src/embedding_initialization/ramen_transfer.py
+lm_transfer/embedding_initialization/ramen_transfer.py
 
 This approach leverages parallel data to transfer word embeddings from a source model to the target language.
 The parallel data is tokenized with the source and target tokenizer and `fast_align` is used to align the tokens.
@@ -93,7 +93,7 @@ Later approaches use the mean and the standard deviation of the source embedding
 target embeddings.
 
 ### WECHSEL (Minixhofer et al., 2022)
-The script: src/embedding_initialization/wechsel_transfer.py
+lm_transfer/embedding_initialization/wechsel_transfer.py
 
 This approach leverages bilingual dictionaries to align existing FastText embeddings for the source and target language 
 using the Orthogonal Procrustes method. This makes it possible to embed the tokens of the source and target language in
@@ -110,7 +110,7 @@ We added to other approaches that are based on WECHSEL.
   the average of the embeddings of words whose tokenization contains the subword, weighted by their word frequencies.
 
 ### FVT (Gee et al., 2022)
-The script: src/embedding_initialization/fvt_transfer.py
+lm_transfer/embedding_initialization/fvt_transfer.py
 
 This approach only works for the transfer of multilingual source models.
 For overlapping tokens the embeddings are copied directly from the source model.
@@ -121,7 +121,7 @@ We think that there is potential to improve the initialization of non-overlappin
 aggregation methods compared to simply averaging the embeddings of the subwords of the decomposition.
 
 ### CLP-Transfer (Ostendorff & Rehm, 2023)
-The script: src/embedding_initialization/clp_transfer.py
+lm_transfer/embedding_initialization/clp_transfer.py
 
 This method transfers word embeddings from a source model to the target language by using the CLP-Transfer method.
 The approach leverages overlapping words between the source and target language to initialize the target language word 
@@ -137,7 +137,7 @@ Notes:
   with separate input and output embeddings, we simply repeat the transfer process for the output embeddings.
 
 ### FOCUS (Dobler & de Melo, 2023)
-The script: src/embedding_initialization/focus_transfer.py
+lm_transfer/embedding_initialization/focus_transfer.py
 
 This method transfers word embeddings from a source model to the target language by using the FOCUS method.
 It also leverages overlapping words between the source and target language to initialize the target language word
@@ -193,7 +193,7 @@ given tokenizer. The hypernetwork learns to merge embeddings of tokens decompose
 single embedding for tokens of the target tokenizer.
 
 ### Matrix Factorization Transfer
-The script: src/embedding_initialization/matrix_factorization_transfer.py
+lm_transfer/embedding_initialization/matrix_factorization_transfer.py
 
 This approach transfers word embeddings from a source model to the target language by using any of the existing 
 transfer methods, but combine it with matrix factorization. 
@@ -204,7 +204,7 @@ to the original dimensionality. The up-projection matrix is reused, which means 
 entire source language word embedding matrix, not just from the overlapping words.
 
 ### Bilingual Dictionary Transfer
-The script: src/embedding_initialization/bilingual_dictionary_transfer.py
+lm_transfer/embedding_initialization/bilingual_dictionary_transfer.py
 
 We walk through the dictionary and tokenize the source language word with the source language tokenizer and the target 
 language word with the target language tokenizer. We track how often a source language word occurs with a target 

@@ -304,6 +304,7 @@ class FocusTokenizerTransfer(OverlapTokenizerTransfer):
         ####################################################
         # 4. Copy source embeddings for overlapping tokens #
         ####################################################
+        self.overlap_based_initialized_tokens = 0
         source_embeddings = torch.from_numpy(source_embeddings).to(self.device)
         target_embeddings = torch.zeros((len(self.target_tokenizer), source_embeddings.shape[1]), device=self.device)
         for _, overlapping_token in self.sorted_overlapping_tokens:
@@ -312,6 +313,7 @@ class FocusTokenizerTransfer(OverlapTokenizerTransfer):
             embs_lst = [source_embeddings[s.id] for s in overlapping_token.source]
             source_embedding = embs_lst[0]
             target_embeddings[overlapping_token.target.id] = source_embedding
+            self.overlap_based_initialized_tokens += 1
         logger.info(f"Copied embeddings for {len(self.overlapping_tokens)} overlapping tokens.")
 
         ###########################################################
@@ -330,9 +332,11 @@ class FocusTokenizerTransfer(OverlapTokenizerTransfer):
         #######################################################
         # 6. Finally, initialize additional tokens with FOCUS #
         #######################################################
+        self.cleverly_initialized_tokens = self.overlap_based_initialized_tokens
         overlapping_tokens_for_focus = {k: v for k, v in self.sorted_overlapping_tokens if v.use_for_focus}
         target_embeddings = self.focus_additional_token_initialization(
             overlapping_tokens_for_focus, self.new_tokens, source_embeddings, target_embeddings, device=self.device
         )
+        self.cleverly_initialized_tokens += len(list(self.new_tokens.values()))
         logger.info(f"Initialized {self.cleverly_initialized_tokens}/{len(self.target_tokens)} tokens with the FOCUS method.")
         return target_embeddings.cpu().numpy()

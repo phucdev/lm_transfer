@@ -1,3 +1,4 @@
+import os
 from lm_transfer.embedding_initialization.tokenizer_transfer import (
     RandomInitializationTokenizerTransfer,
     OverlapTokenizerTransfer
@@ -8,7 +9,9 @@ from lm_transfer.embedding_initialization.wechsel_transfer import WechselTokeniz
 from lm_transfer.embedding_initialization.focus_transfer import FocusTokenizerTransfer
 from lm_transfer.embedding_initialization.ramen_transfer import RamenTokenizerTransfer
 
-# TODO infer path of script from __file__ and set paths to models and data dynamically
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
 
 
 def test_random_embedding_initialization():
@@ -17,7 +20,7 @@ def test_random_embedding_initialization():
     transfer_pipeline = RandomInitializationTokenizerTransfer(
         source_model_name,
         target_tokenizer_name,
-        target_model_path="models/test/random_initialization"
+        target_model_path=os.path.join(parent_dir, "models/test/random_initialization")
     )
     target_model = transfer_pipeline.transfer()
     assert target_model is not None
@@ -29,7 +32,7 @@ def test_overlap_embedding_initialization():
     transfer_pipeline = OverlapTokenizerTransfer(
         source_model_name,
         target_tokenizer_name,
-        target_model_path="models/test/overlap_initialization"
+        target_model_path=os.path.join(parent_dir, "models/test/overlap_initialization")
     )
     target_model = transfer_pipeline.transfer()
     assert target_model is not None
@@ -41,11 +44,11 @@ def test_ramen_embedding_initialization():
     transfer_pipeline = RamenTokenizerTransfer(
         source_model_name,
         target_model_name,
-        aligned_data_path="data/parallel_data/OpenSubtitles",
+        aligned_data_path=os.path.join(parent_dir, "data/parallel_data/OpenSubtitles"),
         source_language_identifier="en",
         target_language_identifier="vi",
         corpus="OpenSubtitles",
-        target_model_path="models/test/ramen_initialization"
+        target_model_path=os.path.join(parent_dir, "models/test/ramen_initialization")
     )
     target_model = transfer_pipeline.transfer()
     assert target_model is not None
@@ -57,10 +60,10 @@ def test_wechsel_embedding_initialization():
     transfer_pipeline = WechselTokenizerTransfer(
         source_model_name,
         target_model_name,
-        bilingual_dictionary="bilingual_dictionary/MUSE/en-vi.txt",
+        bilingual_dictionary=os.path.join(parent_dir, "bilingual_dictionary/MUSE/en-vi.txt"),
         source_language_identifier="en",
         target_language_identifier="vi",
-        target_model_path="models/test/wechsel_initialization"
+        target_model_path=os.path.join(parent_dir, "models/test/wechsel_initialization")
     )
     target_model = transfer_pipeline.transfer()
     assert target_model is not None
@@ -77,7 +80,7 @@ def test_wechsel_aligned_embedding_initialization():
         bilingual_dictionary=None,
         source_language_identifier="en",
         target_language_identifier="vi",
-        target_model_path="models/test/wechsel_aligned_initialization",
+        target_model_path=os.path.join(parent_dir, "models/test/wechsel_aligned_initialization"),
     )
     target_model = transfer_pipeline.transfer()
     assert target_model is not None
@@ -89,10 +92,10 @@ def test_wechsel_overlap_embedding_initialization():
     transfer_pipeline = WechselTokenizerTransfer(
         source_model_name,
         target_model_name,
-        bilingual_dictionary="bilingual_dictionary/MUSE/en-vi.txt",
+        bilingual_dictionary=os.path.join(parent_dir, "bilingual_dictionary/MUSE/en-vi.txt"),
         source_language_identifier="en",
         target_language_identifier="vi",
-        target_model_path="models/test/wechsel_overlap_initialization",
+        target_model_path=os.path.join(parent_dir, "models/test/wechsel_overlap_initialization"),
         leverage_overlap=True,
         overwrite_with_overlap=True
     )
@@ -120,9 +123,9 @@ def test_focus_monolingual_embedding_initialization():
         source_model_name,
         target_model_name,
         language_identifier="vi",
-        target_training_data_path="data/culturax_vi/sample.jsonl",
+        target_training_data_path=os.path.join(parent_dir, "data/culturax_vi/sample.jsonl"),
         processes=1,
-        target_model_path="models/test/focus_monolingual_initialization"
+        target_model_path=os.path.join(parent_dir, "models/test/focus_monolingual_initialization")
     )
     target_model = transfer_pipeline.transfer()
     assert target_model is not None
@@ -134,7 +137,7 @@ def test_overlap_multilingual_embedding_initialization():
     transfer_pipeline = OverlapTokenizerTransfer(
         source_model_name,
         target_tokenizer_name,
-        target_model_path="models/test/overlap_multilingual_initialization"
+        target_model_path=os.path.join(parent_dir, "models/test/overlap_multilingual_initialization")
     )
     target_model = transfer_pipeline.transfer()
     assert target_model is not None
@@ -146,7 +149,7 @@ def test_fvt_embedding_initialization():
     transfer_pipeline = FVTTokenizerTransfer(
         source_model_name,
         target_model_name,
-        target_model_path="models/test/fvt_initialization"
+        target_model_path=os.path.join(parent_dir, "models/test/fvt_initialization")
     )
     target_model= transfer_pipeline.transfer()
     assert target_model is not None
@@ -159,9 +162,9 @@ def test_focus_multilingual_embedding_initialization():
         source_model_name,
         target_model_name,
         language_identifier="vi",
-        target_training_data_path="data/culturax_vi/sample.jsonl",
+        target_training_data_path=os.path.join(parent_dir, "data/culturax_vi/sample.jsonl"),
         processes=1,
-        target_model_path="models/test/focus_multilingual_initialization"
+        target_model_path=os.path.join(parent_dir, "models/test/focus_multilingual_initialization")
     )
     target_model = transfer_pipeline.transfer()
     assert target_model is not None

@@ -89,6 +89,13 @@ class TokenizerTransfer:
         }
         return parameters_dict
 
+    def get_transfer_statistics(self):
+        return {
+            "cleverly_initialized_tokens": self.cleverly_initialized_tokens,
+            "overlap_based_initialized_tokens": self.overlap_based_initialized_tokens,
+            "randomly_initialized_tokens": len(self.target_tokens) - self.cleverly_initialized_tokens
+        }
+
     def initialize_embeddings(self, source_embeddings, **kwargs):
         """
         Method that initializes the embeddings of a LM with a target tokenizer given a source LM.

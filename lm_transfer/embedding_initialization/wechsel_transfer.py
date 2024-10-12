@@ -772,6 +772,7 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
         # embeddings were used for WECHSEL initialization
 
         if self.leverage_overlap:
+            self.overlap_based_initialized_tokens = 0
             # Optional: Get overlapping tokens and missing tokens
             overlapping_tokens, missing_tokens = self.get_overlapping_tokens()
             overlapping_token_indices = []
@@ -788,8 +789,9 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
                     self.overlap_based_initialized_tokens += 1
                     if token in not_found:
                         not_found.remove(token)
-
-        self.cleverly_initialized_tokens += self.overlap_based_initialized_tokens
+            self.cleverly_initialized_tokens = len(self.target_tokens) - len(not_found)
+        else:
+            self.cleverly_initialized_tokens += self.overlap_based_initialized_tokens
 
         logger.info(f"Initialized {self.cleverly_initialized_tokens}/{len(self.target_tokens)} tokens using WECHSEL method.")
         return target_embeddings

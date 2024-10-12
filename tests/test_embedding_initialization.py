@@ -40,10 +40,10 @@ def test_overlap_embedding_initialization():
 
 def test_ramen_embedding_initialization():
     source_model_name = "FacebookAI/roberta-base"
-    target_model_name = "phucdev/vi-bpe-culturax-4g-sample"
+    target_tokenizer_name = "phucdev/vi-bpe-culturax-4g-sample"
     transfer_pipeline = RamenTokenizerTransfer(
         source_model_name,
-        target_model_name,
+        target_tokenizer_name,
         aligned_data_path=os.path.join(parent_dir, "data/parallel_data/OpenSubtitles"),
         source_language_identifier="en",
         target_language_identifier="vi",
@@ -56,10 +56,10 @@ def test_ramen_embedding_initialization():
 
 def test_wechsel_embedding_initialization():
     source_model_name = "FacebookAI/roberta-base"
-    target_model_name = "phucdev/vi-bpe-culturax-4g-sample"
+    target_tokenizer_name = "phucdev/vi-bpe-culturax-4g-sample"
     transfer_pipeline = WechselTokenizerTransfer(
         source_model_name,
-        target_model_name,
+        target_tokenizer_name,
         bilingual_dictionary=os.path.join(parent_dir, "bilingual_dictionary/MUSE/en-vi.txt"),
         source_language_identifier="en",
         target_language_identifier="vi",
@@ -71,10 +71,10 @@ def test_wechsel_embedding_initialization():
 
 def test_wechsel_aligned_embedding_initialization():
     source_model_name = "FacebookAI/roberta-base"
-    target_model_name = "phucdev/vi-bpe-culturax-4g-sample"
+    target_tokenizer_name = "phucdev/vi-bpe-culturax-4g-sample"
     transfer_pipeline = WechselTokenizerTransfer(
         source_model_name,
-        target_model_name,
+        target_tokenizer_name,
         align_strategy=None,
         use_subword_info=False,
         bilingual_dictionary=None,
@@ -88,10 +88,10 @@ def test_wechsel_aligned_embedding_initialization():
 
 def test_wechsel_overlap_embedding_initialization():
     source_model_name = "FacebookAI/roberta-base"
-    target_model_name = "phucdev/vi-bpe-culturax-4g-sample"
+    target_tokenizer_name = "phucdev/vi-bpe-culturax-4g-sample"
     transfer_pipeline = WechselTokenizerTransfer(
         source_model_name,
-        target_model_name,
+        target_tokenizer_name,
         bilingual_dictionary=os.path.join(parent_dir, "bilingual_dictionary/MUSE/en-vi.txt"),
         source_language_identifier="en",
         target_language_identifier="vi",
@@ -118,10 +118,10 @@ def test_wechsel_overlap_embedding_initialization():
 
 def test_focus_monolingual_embedding_initialization():
     source_model_name = "FacebookAI/roberta-base"
-    target_model_name = "phucdev/vi-bpe-culturax-4g-sample"
+    target_tokenizer_name = "phucdev/vi-bpe-culturax-4g-sample"
     transfer_pipeline = FocusTokenizerTransfer(
         source_model_name,
-        target_model_name,
+        target_tokenizer_name,
         language_identifier="vi",
         target_training_data_path=os.path.join(parent_dir, "data/culturax_vi/sample.jsonl"),
         processes=1,
@@ -145,10 +145,10 @@ def test_overlap_multilingual_embedding_initialization():
 
 def test_fvt_embedding_initialization():
     source_model_name = "FacebookAI/xlm-roberta-base"
-    target_model_name = "phucdev/vi-spm-culturax-4g-sample"
+    target_tokenizer_name = "phucdev/vi-spm-culturax-4g-sample"
     transfer_pipeline = FVTTokenizerTransfer(
         source_model_name,
-        target_model_name,
+        target_tokenizer_name,
         target_model_path=os.path.join(parent_dir, "models/test/fvt_initialization")
     )
     target_model= transfer_pipeline.transfer()
@@ -157,10 +157,10 @@ def test_fvt_embedding_initialization():
 
 def test_focus_multilingual_embedding_initialization():
     source_model_name = "FacebookAI/xlm-roberta-base"
-    target_model_name = "phucdev/vi-spm-culturax-4g-sample"
+    target_tokenizer_name = "phucdev/vi-spm-culturax-4g-sample"
     transfer_pipeline = FocusTokenizerTransfer(
         source_model_name,
-        target_model_name,
+        target_tokenizer_name,
         language_identifier="vi",
         target_training_data_path=os.path.join(parent_dir, "data/culturax_vi/sample.jsonl"),
         processes=1,

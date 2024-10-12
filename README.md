@@ -209,12 +209,17 @@ lm_transfer/embedding_initialization/bilingual_dictionary_transfer.py
 We walk through the dictionary and tokenize the source language word with the source language tokenizer and the target 
 language word with the target language tokenizer. We track how often a source language word occurs with a target 
 language word in translation pairs. We use this normalized frequency matrix to determine how much a source language
-word embeddings contributes to the initialization of a target language word embedding. 
-
-
+word embeddings contributes to the initialization of a target language word embedding.
 
 ## Continued Pre-training
 TODO
 
 ## Training and Evaluation on downstream tasks
 TODO
+
+## Clean up
+The scripts in this repository often download files to the `.cache`.
+If you want to clean up those files, then you should examine the following directories:
+- `~/.cache/huggingface` -> `datasets`, `transformers`, etc.
+- `~/.cache/wechsel` -> FastText embeddings and cached data for WECHSEL
+- `~/.cache/deepfocus` -> FastText embeddings and cached data for FOCUS

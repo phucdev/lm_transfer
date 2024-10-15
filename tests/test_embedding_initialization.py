@@ -123,7 +123,7 @@ def test_focus_monolingual_embedding_initialization():
         source_model_name,
         target_tokenizer_name,
         language_identifier="vi",
-        target_training_data_path=os.path.join(parent_dir, "data/culturax_vi/sample.jsonl"),
+        target_training_data_path=os.path.join(parent_dir, "data/culturax_vi/sample.json"),
         processes=1,
         target_model_path=os.path.join(parent_dir, "models/test/focus_monolingual_initialization")
     )
@@ -162,7 +162,7 @@ def test_focus_multilingual_embedding_initialization():
         source_model_name,
         target_tokenizer_name,
         language_identifier="vi",
-        target_training_data_path=os.path.join(parent_dir, "data/culturax_vi/sample.jsonl"),
+        target_training_data_path=os.path.join(parent_dir, "data/culturax_vi/sample.json"),
         processes=1,
         target_model_path=os.path.join(parent_dir, "models/test/focus_multilingual_initialization")
     )

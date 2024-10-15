@@ -98,7 +98,7 @@ def parse_args():
     if args.aligned_data_path is None:
         args.aligned_data_path = os.path.join(parent_dir, "data/parallel_data/OpenSubtitles")
     if args.target_training_data_path is None:
-        args.target_training_data_path = os.path.join(parent_dir, "data/culturax_vi/train.jsonl")
+        args.target_training_data_path = os.path.join(parent_dir, "data/culturax_vi/train.json")
     if args.statistics_file is None:
         args.statistics_file = os.path.join(args.output_dir, "transfer_statistics.json")
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)

@@ -82,13 +82,13 @@ def prepare_dataset():
         )
         dataset_iter = iter(dataset)
 
-        create_split(output_dir / "train.jsonl", dataset_iter, subsample_size, args)
-        create_split(output_dir / "valid.jsonl", dataset_iter, subsample_size * args.valid_percentage / 100, args)
+        create_split(output_dir / "train.json", dataset_iter, subsample_size, args)
+        create_split(output_dir / "valid.json", dataset_iter, subsample_size * args.valid_percentage / 100, args)
 
     if args.preprocess_dataset:
         preprocess_dataset(
-            train_file=output_dir / "train.jsonl",
-            validation_file=output_dir / "valid.jsonl",
+            train_file=output_dir / "train.json",
+            validation_file=output_dir / "valid.json",
             save_preprocessed_dataset_path=output_dir / "preprocessed",
             model_name_or_path=args.model_name_or_path,
             block_size=args.block_size,

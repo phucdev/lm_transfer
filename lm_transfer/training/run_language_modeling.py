@@ -180,6 +180,7 @@ def parse_args():
         help="Initial learning rate (after the potential warmup period) to use.",
     )
     parser.add_argument("--weight_decay", type=float, default=0.0, help="Weight decay to use.")
+    parser.add_argument("--adam_epsilon", type=float, default=1e-8, help="Adam epsilon to use.")
     parser.add_argument("--beta1", type=float, default=0.9, help="Adam beta1.")
     parser.add_argument("--beta2", type=float, default=0.999, help="Adam beta2.")
     parser.add_argument("--grad_clip", type=float, default=1.0, help="Gradient clipping.")
@@ -537,10 +538,10 @@ def main():
         column_names = raw_datasets["train"].column_names
         text_column_name = "text" if "text" in column_names else column_names[0]
 
+        block_size = 1024
         if args.block_size is None:
             block_size = tokenizer.model_max_length
-            # TODO some older configs e.g. GPT2 do not have a max_position_embeddings attribute
-            if block_size > config.max_position_embeddings:
+            if hasattr(config, "max_position_embeddings") and block_size > config.max_position_embeddings:
                 logger.warning(
                     f"The tokenizer picked seems to have a very large `model_max_length` ({tokenizer.model_max_length})."
                     f"Using block_size={min(1024, config.max_position_embeddings)} instead. You can change that "
@@ -670,9 +671,15 @@ def main():
         train_dataset, shuffle=True, collate_fn=data_collator, batch_size=args.per_device_train_batch_size
     )
     # we shuffle to get a new random sample each time we evaluate for eval_iters
+    generator = torch.Generator()
+    generator.manual_seed(args.seed)
+    shuffled_eval_dataloader = DataLoader(
+        eval_dataset, shuffle=True, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size,
+        generator=generator
+    )
+    # for evaluation at the end of training
     eval_dataloader = DataLoader(
-        eval_dataset, shuffle=False if args.eval_steps == "epoch" else True, collate_fn=data_collator,
-        batch_size=args.per_device_eval_batch_size
+        eval_dataset, shuffle=False, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size
     )
 
     if args.language_modeling_objective == "clm":
@@ -720,7 +727,11 @@ def main():
             "weight_decay": 0.0,
         },
     ]
-    optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate, betas=(args.beta1, args.beta2))
+    optimizer = torch.optim.AdamW(
+        optimizer_grouped_parameters,
+        lr=args.learning_rate,
+        eps=args.adam_epsilon,
+        betas=(args.beta1, args.beta2))
 
     # Note -> the training dataloader needs to be prepared before we grab his length below (cause its length will be
     # shorter in multiprocess)
@@ -742,8 +753,8 @@ def main():
     )
 
     # Prepare everything with our `accelerator`.
-    model, optimizer, train_dataloader, eval_dataloader, lr_scheduler = accelerator.prepare(
-        model, optimizer, train_dataloader, eval_dataloader, lr_scheduler
+    model, optimizer, train_dataloader, eval_dataloader, shuffled_eval_dataloader, lr_scheduler = accelerator.prepare(
+        model, optimizer, train_dataloader, eval_dataloader, shuffled_eval_dataloader, lr_scheduler
     )
 
     # On TPU, the tie weights in our model have been disconnected, so we need to restore the ties.
@@ -871,7 +882,7 @@ def main():
                 if completed_steps % eval_steps == 0:
                     logger.info(f"epoch {epoch}: step {completed_steps}: evaluating model")
                     eval_loss, perplexity = validate_model(
-                        model, eval_dataloader, accelerator, args.per_device_eval_batch_size, args.eval_iters
+                        model, shuffled_eval_dataloader, accelerator, args.per_device_eval_batch_size, args.eval_iters
                     )
                     logger.info(
                         f"epoch {epoch}: step {completed_steps}: perplexity: {perplexity} eval_loss: {eval_loss}")

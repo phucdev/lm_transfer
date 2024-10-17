@@ -38,7 +38,7 @@ The fine-tuning scripts are completely based on Hugging Face's `transformers` Py
 For Named Entity Recognition (NER) or Part-of-Speech (POS) tagging, you can use the `run_ner.py` script.
 
 ```bash
-python src/training/run_ner.py \
+python lm_transfer/training/run_ner.py \
   --model_name FacebookAI/xlm-roberta-base \
   --dataset_name phucdev/PhoNER_COVID19 \
   --dataset_config_name word \
@@ -72,7 +72,7 @@ inference dataset (XNLI).
 
 For ViHSD, you can use the `run_text_classification.py` script::
 ```bash
-python src/training/run_classification.py \
+python lm_transfer/training/run_classification.py \
     --model_name_or_path FacebookAI/xlm-roberta-base \
     --dataset_name phucdev/ViHSD \
     --cache_dir /vol/tmp/truongph \
@@ -93,7 +93,7 @@ python src/training/run_classification.py \
 
 For XNLI, you can use the `run_xnli.py` script:
 ```bash
-python src/training/run_xnli.py \
+python lm_transfer/training/run_xnli.py \
   --model_name_or_path FacebookAI/xlm-roberta-base \
   --language vi \
   --train_language vi \
@@ -115,7 +115,7 @@ acc = 0.7093812375249501
 ### Question Answering
 For Question Answering, you can use the `run_qa.py` script:
 ```bash
-python src/training/run_qa.py \
+python lm_transfer/training/run_qa.py \
   --model_name_or_path=FacebookAI/xlm-roberta-base \
   --dataset_name=phucdev/ViMLQA \
   --output_dir=outputs/mlqa \

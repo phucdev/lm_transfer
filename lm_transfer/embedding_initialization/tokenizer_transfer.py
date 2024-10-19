@@ -213,7 +213,7 @@ class RandomInitializationTokenizerTransfer(TokenizerTransfer):
             ).numpy()
         else:
             raise ValueError("Invalid initialization method")
-        return target_embeddings
+        return target_embeddings.astype(source_embeddings.dtype)
 
     @override
     def initialize_embeddings(self, source_embeddings, **kwargs):

@@ -162,7 +162,7 @@ class CLPTokenizerTransfer(TokenizerTransfer):
         logger.info(
             f"Initialized {self.cleverly_initialized_tokens}/{len(self.target_tokens)} tokens with the CLP method."
         )
-        return target_embeddings
+        return target_embeddings.astype(source_embeddings.dtype)
 
     @override
     def transfer(self, **kwargs):

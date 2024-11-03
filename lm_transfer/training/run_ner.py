@@ -40,10 +40,11 @@ from transformers import (
     PretrainedConfig,
     PreTrainedTokenizerFast,
     Trainer,
-    TrainingArguments,
     set_seed,
+    EarlyStoppingCallback
 )
 from transformers.trainer_utils import get_last_checkpoint
+from lm_transfer.training.custom_training_arguments import CustomTrainingArguments
 
 
 logger = logging.getLogger(__name__)
@@ -212,7 +213,7 @@ def main():
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
 
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
+    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, CustomTrainingArguments))
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
@@ -559,6 +560,8 @@ def main():
         tokenizer=tokenizer,
         data_collator=data_collator,
         compute_metrics=compute_metrics,
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=model_args.early_stopping_patience)]
+            if model_args.early_stopping_patience > 0 else None,
     )
 
     # Training

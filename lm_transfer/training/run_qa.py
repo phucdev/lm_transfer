@@ -43,8 +43,10 @@ from transformers import (
     TrainingArguments,
     default_data_collator,
     set_seed,
+    EarlyStoppingCallback
 )
 from transformers.trainer_utils import get_last_checkpoint
+from lm_transfer.training.custom_training_arguments import CustomTrainingArguments
 
 
 logger = logging.getLogger(__name__)
@@ -633,6 +635,8 @@ def main():
         data_collator=data_collator,
         post_process_function=post_processing_function,
         compute_metrics=compute_metrics,
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=model_args.early_stopping_patience)]
+            if model_args.early_stopping_patience > 0 else None,
     )
 
     # Training

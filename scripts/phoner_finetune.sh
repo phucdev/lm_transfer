@@ -1,8 +1,8 @@
 #!/bin/bash
+# WANDB
+export WANDB_PROJECT="PhoNER_COVID19"
 
-# Variables
-MODEL_NAME_OR_PATH="results/roberta-random_init"
-OUTPUT_DIR="results/downstream/phoner/roberta-random_init"
+# General variables
 CACHE_DIR="/vol/tmp/truongph"
 DATASET_NAME="phucdev/PhoNER_COVID19"
 DATASET_CONFIG_NAME="syllable"
@@ -14,6 +14,10 @@ LEARNING_RATE_SCHEDULER_TYPE="linear"
 LEARNING_RATE=2e-5
 WARMUP_RATIO=0.1
 NUM_EPOCHS=5
+
+# Variables for model
+MODEL_NAME_OR_PATH="results/roberta-random_init"
+OUTPUT_DIR="results/downstream/phoner/roberta-random_init"
 
 # Loop to run training 5 times with different random seeds
 for SEED in 42 123 456 789 101112

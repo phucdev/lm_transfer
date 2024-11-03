@@ -12,7 +12,7 @@ PER_DEVICE_EVAL_BATCH_SIZE=32
 GRADIENT_ACCUMULATION_STEPS=1
 LEARNING_RATE=2e-5
 NUM_EPOCHS=2
-LEARNING_RATE_SCHEDULER_TYPE="linear"
+LR_SCHEDULER_TYPE="linear"
 WARMUP_RATIO=0.1
 
 # Variables for model
@@ -38,7 +38,7 @@ do
         --per_device_train_batch_size ${PER_DEVICE_TRAIN_BATCH_SIZE} \
         --per_device_eval_batch_size ${PER_DEVICE_EVAL_BATCH_SIZE} \
         --gradient_accumulation_steps ${GRADIENT_ACCUMULATION_STEPS} \
-        --learning_rate_scheduler_type ${LEARNING_RATE_SCHEDULER_TYPE} \
+        --lr_scheduler_type ${LR_SCHEDULER_TYPE} \
         --learning_rate ${LEARNING_RATE} \
         --warmup_ratio ${WARMUP_RATIO} \
         --num_train_epochs ${NUM_EPOCHS} \

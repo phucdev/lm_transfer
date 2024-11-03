@@ -199,6 +199,7 @@ def get_subword_embeddings_in_word_embedding_space(
         # Mentioned in Appendix D of the paper for models without subword information:
         #  The embedding of a subword (target token) is defined as the average of the embeddings of words
         #  that contain the subword in their decomposition weighted by their word frequencies.
+        # TODO with the wiki vectors using this method somehow results in lot more randomly initialized tokens
         embs = {value: [] for value in tokenizer.get_vocab().values()}
         # Go through each word in the FastText model
         for i, word in tqdm(

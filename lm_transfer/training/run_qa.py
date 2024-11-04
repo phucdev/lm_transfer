@@ -40,12 +40,12 @@ from transformers import (
     EvalPrediction,
     HfArgumentParser,
     PreTrainedTokenizerFast,
-    TrainingArguments,
     default_data_collator,
     set_seed,
     EarlyStoppingCallback
 )
 from transformers.trainer_utils import get_last_checkpoint
+from lm_transfer.training import generate_experiment_id
 from lm_transfer.training.custom_training_arguments import CustomTrainingArguments
 
 
@@ -225,7 +225,7 @@ def main():
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
 
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
+    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, CustomTrainingArguments))
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
@@ -618,7 +618,8 @@ def main():
         warnings.warn(f"--metric_for_best_model should be set to one of {accepted_best_metrics}")
 
     metric = evaluate.load(
-        "squad_v2" if data_args.version_2_with_negative else "squad", cache_dir=model_args.cache_dir
+        "squad_v2" if data_args.version_2_with_negative else "squad", cache_dir=model_args.cache_dir,
+        experiment_id=generate_experiment_id()
     )
 
     def compute_metrics(p: EvalPrediction):
@@ -635,8 +636,12 @@ def main():
         data_collator=data_collator,
         post_process_function=post_processing_function,
         compute_metrics=compute_metrics,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=model_args.early_stopping_patience)]
-            if model_args.early_stopping_patience > 0 else None,
+        callbacks=[
+            EarlyStoppingCallback(
+                early_stopping_patience=training_args.early_stopping_patience,
+                early_stopping_threshold=training_args.early_stopping_threshold
+            )]
+            if training_args.early_stopping_patience > 0 else None,
     )
 
     # Training

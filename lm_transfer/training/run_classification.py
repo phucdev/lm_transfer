@@ -42,6 +42,7 @@ from transformers import (
     EarlyStoppingCallback
 )
 from transformers.trainer_utils import get_last_checkpoint
+from lm_transfer.training import generate_experiment_id
 from lm_transfer.training.custom_training_arguments import CustomTrainingArguments
 
 
@@ -577,19 +578,23 @@ def main():
 
     if data_args.metric_name is not None:
         metric = (
-            evaluate.load(data_args.metric_name, config_name="multilabel", cache_dir=model_args.cache_dir)
+            evaluate.load(data_args.metric_name, config_name="multilabel", cache_dir=model_args.cache_dir,
+                          experiment_id=generate_experiment_id())
             if is_multi_label
-            else evaluate.load(data_args.metric_name, cache_dir=model_args.cache_dir)
+            else evaluate.load(data_args.metric_name, cache_dir=model_args.cache_dir,
+                               experiment_id=generate_experiment_id())
         )
         logger.info(f"Using metric {data_args.metric_name} for evaluation.")
     else:
         if is_multi_label:
-            metric = evaluate.load("f1", config_name="multilabel", cache_dir=model_args.cache_dir)
+            metric = evaluate.load("f1", config_name="multilabel", cache_dir=model_args.cache_dir,
+                                   experiment_id=generate_experiment_id())
             logger.info(
                 "Using multilabel F1 for multi-label classification task, you can use --metric_name to overwrite."
             )
         else:
-            metric = evaluate.load("accuracy", cache_dir=model_args.cache_dir)
+            metric = evaluate.load("accuracy", cache_dir=model_args.cache_dir,
+                                   experiment_id=generate_experiment_id())
             logger.info("Using accuracy as classification score, you can use --metric_name to overwrite.")
 
     def compute_metrics(p: EvalPrediction):
@@ -623,8 +628,12 @@ def main():
         compute_metrics=compute_metrics,
         tokenizer=tokenizer,
         data_collator=data_collator,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=model_args.early_stopping_patience)]
-            if model_args.early_stopping_patience > 0 else None,
+        callbacks=[
+            EarlyStoppingCallback(
+                early_stopping_patience=training_args.early_stopping_patience,
+                early_stopping_threshold=training_args.early_stopping_threshold
+            )]
+            if training_args.early_stopping_patience > 0 else None,
     )
 
     # Training

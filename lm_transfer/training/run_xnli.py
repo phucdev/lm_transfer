@@ -43,6 +43,7 @@ from transformers import (
     EarlyStoppingCallback
 )
 from transformers.trainer_utils import get_last_checkpoint
+from lm_transfer.training import generate_experiment_id
 from lm_transfer.training.custom_training_arguments import CustomTrainingArguments
 
 
@@ -359,7 +360,7 @@ def main():
             )
 
     # Get the metric function
-    metric = evaluate.load("xnli", cache_dir=model_args.cache_dir)
+    metric = evaluate.load("xnli", cache_dir=model_args.cache_dir, experiment_id=generate_experiment_id())
 
     # You can define your custom compute_metrics function. It takes an `EvalPrediction` object (a namedtuple with a
     # predictions and label_ids field) and has to return a dictionary string to float.
@@ -385,8 +386,12 @@ def main():
         compute_metrics=compute_metrics,
         tokenizer=tokenizer,
         data_collator=data_collator,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=model_args.early_stopping_patience)]
-            if model_args.early_stopping_patience > 0 else None,
+        callbacks=[
+            EarlyStoppingCallback(
+                early_stopping_patience=training_args.early_stopping_patience,
+                early_stopping_threshold=training_args.early_stopping_threshold
+            )]
+            if training_args.early_stopping_patience > 0 else None,
     )
 
     # Training

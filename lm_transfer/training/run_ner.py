@@ -44,6 +44,7 @@ from transformers import (
     EarlyStoppingCallback
 )
 from transformers.trainer_utils import get_last_checkpoint
+from lm_transfer.training import generate_experiment_id
 from lm_transfer.training.custom_training_arguments import CustomTrainingArguments
 
 
@@ -516,7 +517,7 @@ def main():
     data_collator = DataCollatorForTokenClassification(tokenizer, pad_to_multiple_of=8 if training_args.fp16 else None)
 
     # Metrics
-    metric = evaluate.load("seqeval", cache_dir=model_args.cache_dir)
+    metric = evaluate.load("seqeval", cache_dir=model_args.cache_dir, experiment_id=generate_experiment_id())
 
     def compute_metrics(p):
         predictions, labels = p
@@ -560,8 +561,12 @@ def main():
         tokenizer=tokenizer,
         data_collator=data_collator,
         compute_metrics=compute_metrics,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=model_args.early_stopping_patience)]
-            if model_args.early_stopping_patience > 0 else None,
+        callbacks=[
+            EarlyStoppingCallback(
+                early_stopping_patience=training_args.early_stopping_patience,
+                early_stopping_threshold=training_args.early_stopping_threshold
+            )]
+            if training_args.early_stopping_patience > 0 else None,
     )
 
     # Training

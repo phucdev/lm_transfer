@@ -46,7 +46,7 @@ do
         --save_strategy epoch \
         --save_total_limit 1 \
         --load_best_model_at_end \
-        --metric_for_best_model "overall_f1" \
+        --metric_for_best_model "f1" \
         --seed ${SEED} \
         --output_dir ${OUTPUT_DIR_WITH_SEED}
 

@@ -7,7 +7,6 @@ CACHE_DIR="/vol/tmp/truongph"
 DATASET_NAME="phucdev/ViHSD"
 TEXT_COLUMN="free_text"
 LABEL_COLUMN="label_id"
-METRIC="f1"
 MAX_SEQ_LENGTH=128
 PER_DEVICE_TRAIN_BATCH_SIZE=32
 PER_DEVICE_EVAL_BATCH_SIZE=32
@@ -15,7 +14,8 @@ GRADIENT_ACCUMULATION_STEPS=1
 LEARNING_RATE=2e-5
 NUM_EPOCHS=5
 LR_SCHEDULER_TYPE="linear"
-WARUMUP_RATIO=0.1
+METRIC_NAME="phucdev/vihsd"
+WARMUP_RATIO=0.1
 
 # Variables for model
 MODEL_NAME_OR_PATH="results/roberta-random_init"
@@ -33,7 +33,6 @@ do
         --dataset_name ${DATASET_NAME} \
         --cache_dir ${CACHE_DIR} \
         --shuffle_train_dataset \
-        --metric_name ${METRIC} \
         --text_column_name ${TEXT_COLUMN} \
         --label_column_name ${LABEL_COLUMN} \
         --do_train \
@@ -51,6 +50,7 @@ do
         --save_strategy epoch \
         --save_total_limit 1 \
         --load_best_model_at_end \
+        --metric_name ${METRIC_NAME} \
         --metric_for_best_model "accuracy" \
         --seed ${SEED} \
         --output_dir ${OUTPUT_DIR_WITH_SEED}

@@ -79,6 +79,12 @@ def parse_args():
         help="The name of the project to log to."
     )
     parser.add_argument(
+        "--run_name",
+        type=str,
+        default=None,
+        help="The name of the run to log to."
+    )
+    parser.add_argument(
         "--dataset_name",
         type=str,
         default=None,
@@ -783,7 +789,8 @@ def main():
         experiment_config = vars(args)
         # TensorBoard cannot log Enums, need the raw value
         experiment_config["lr_scheduler_type"] = experiment_config["lr_scheduler_type"].value
-        accelerator.init_trackers(args.project_name, experiment_config)
+        accelerator.init_trackers(project_name=args.project_name, config=experiment_config,
+                                  init_kwargs={"wandb": {"name": args.run_name}} if args.run_name else None)
 
     # Train!
     total_batch_size = args.per_device_train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps

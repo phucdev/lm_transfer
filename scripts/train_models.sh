@@ -5,7 +5,7 @@ accelerate launch lm_transfer/training/run_language_modeling.py \
   --report_to=wandb \
   --project_name=master-thesis \
   --run_name=roberta-random_init \
-  --model_name_or_path=models/transfer/random_initialization \
+  --model_name_or_path=models/random_initialization \
   --num_train_epochs=1 \
   --preprocessing_num_workers=4 \
   --per_device_train_batch_size=16 \

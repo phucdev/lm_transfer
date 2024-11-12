@@ -41,22 +41,47 @@ def perform_factorize(source_matrix, keep_dim=100):
         return primitive_embeddings, lower_coordinates
 
 
-def load_vectors(fname, maxload=200000, norm=True, center=False, verbose=True):
+def load_vectors(fname, maxload=200000, norm=True, center=False, verbose=True, vocabulary=None):
+    """
+    Load word vectors from a file
+    :param fname: File name
+    :param maxload: Maximum number of vectors to load
+    :param norm: Whether to normalize the vectors
+    :param center: Whether to center the vectors
+    :param verbose: Whether to print information
+    :param vocabulary: Tokenizer vocabulary in order to do targeted loading of word vectors
+    :return: List of words and matrix of vectors
+    """
     if verbose:
         print("Loading vectors from %s" % fname)
     fin = io.open(fname, 'r', encoding='utf-8', newline='\n', errors='ignore')
     n, d = map(int, fin.readline().split())
     if maxload > 0:
         n = min(n, maxload)
-    x = np.zeros([n, d])
-    words = []
-    for i, line in enumerate(fin):
-        if i >= n:
-            break
-        tokens = line.rstrip().split(' ')
-        words.append(tokens[0])
-        v = np.array(tokens[1:], dtype=float)
-        x[i, :] = v
+
+    if vocabulary is None:
+        x = np.zeros([n, d])
+        words = []
+        for i, line in enumerate(fin):
+            if i >= n:
+                break
+            tokens = line.rstrip().split(' ')
+            words.append(tokens[0])
+            v = np.array(tokens[1:], dtype=float)
+            x[i, :] = v
+    else:
+        # In this case we through all the vectors, load at least maxload vectors and additionally load vectors
+        # if they are in the vocabulary
+        x = []
+        words = []
+        for i, line in enumerate(fin):
+            tokens = line.rstrip().split(' ')
+            if i < maxload or tokens[0] in vocabulary:
+                words.append(tokens[0])
+                v = np.array(tokens[1:], dtype=float)
+                x.append(v)
+        x = np.vstack(x)
+    fin.close()
     if norm:
         x /= np.linalg.norm(x, axis=1)[:, np.newaxis] + 1e-8
     if center:
@@ -131,7 +156,7 @@ def load_pairs(filename, idx_src, idx_tgt, verbose=True):
     pairs = []
     tot = 0
     for line in f:
-        a, b = line.rstrip().split(' ')
+        a, b = line.rstrip().split('\t')
         tot += 1
         if a in idx_src and b in idx_tgt:
             pairs.append((idx_src[a], idx_tgt[b]))

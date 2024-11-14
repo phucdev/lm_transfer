@@ -1,10 +1,18 @@
 ## Alignment of Word Embeddings
 
+This is code from: https://github.com/facebookresearch/fastText/tree/main/alignment
+
 This directory provides code for learning alignments between word embeddings in different languages.
 
 The code is in Python 3 and requires [NumPy](http://www.numpy.org/).
 
 The script `example.sh` shows how to use this code to learn and evaluate a bilingual alignment of word embeddings.
+In this adapted version, we align the fastText embeddings that were trained on the Common Crawl.
+
+For our language pair (English->Vietnamese) run the script like this:
+```bash
+./example.sh en vi FacebookAI/roberta-base phucdev/vi-bpe-culturax-4g-sample
+```
 
 The word embeddings used in [1] can be found on the [fastText project page](https://fasttext.cc) and the supervised bilingual lexicons on the [MUSE project page](https://github.com/facebookresearch/MUSE).
 
@@ -12,14 +20,6 @@ The word embeddings used in [1] can be found on the [fastText project page](http
 
 The script `align.py` aligns word embeddings from two languages using a bilingual lexicon as supervision.
 The details of this approach can be found in [1].
-
-### Unsupervised alignment
-
-The script `unsup_align.py` aligns word embeddings from two languages without requiring any supervision.
-Additionally, the script `unsup_multialign.py` aligns multiple languages to a common space with no supervision.
-The details of these approaches can be found in [2] and [3] respectively.
-
-In addition to NumPy, the unsupervised methods require the [Python Optimal Transport](https://pot.readthedocs.io/en/stable/) toolbox.
 
 ### Download
 
@@ -37,31 +37,5 @@ If you use the supervised alignment method, please cite:
     author={Joulin, Armand and Bojanowski, Piotr and Mikolov, Tomas and J\'egou, Herv\'e and Grave, Edouard},
     year={2018},
     booktitle={Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing},
-}
-```
-
-If you use the unsupervised bilingual alignment method, please cite:
-
-[2] E. Grave, A. Joulin, Q. Berthet, [*Unsupervised Alignment of Embeddings with Wasserstein Procrustes*](https://arxiv.org/abs/1805.11222)
-
-```
-@article{grave2018unsupervised,
-    title={Unsupervised Alignment of Embeddings with Wasserstein Procrustes},
-    author={Grave, Edouard and Joulin, Armand and Berthet, Quentin},
-    journal={arXiv preprint arXiv:1805.11222},
-    year={2018}
-}
-```
-
-If you use the unsupervised alignment script `unsup_multialign.py`, please cite:
-
-[3] J. Alaux, E. Grave, M. Cuturi, A. Joulin, [*Unsupervised Hyperalignment for Multilingual Word Embeddings*](https://arxiv.org/abs/1811.01124)
-
-```
-@article{alaux2018unsupervised,
-  title={Unsupervised hyperalignment for multilingual word embeddings},
-  author={Alaux, Jean and Grave, Edouard and Cuturi, Marco and Joulin, Armand},
-  journal={arXiv preprint arXiv:1811.01124},
-  year={2018}
 }
 ```

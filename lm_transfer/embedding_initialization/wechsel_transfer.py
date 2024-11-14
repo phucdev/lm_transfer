@@ -21,6 +21,7 @@ from datasets import load_dataset
 from gensim.models import KeyedVectors
 from lm_transfer.embedding_initialization.tokenizer_transfer import OverlapTokenizerTransfer
 from lm_transfer.utils.download_utils import download, decompress_archive as gunzip
+from lm_transfer.utils.utils import load_matrix
 
 
 CACHE_DIR = (
@@ -200,6 +201,7 @@ def get_subword_embeddings_in_word_embedding_space(
         #  The embedding of a subword (target token) is defined as the average of the embeddings of words
         #  that contain the subword in their decomposition weighted by their word frequencies.
         # TODO with the wiki vectors using this method somehow results in lot more randomly initialized tokens
+        #  meaning that the subword embeddings are not being found in the fasttext model
         embs = {value: [] for value in tokenizer.get_vocab().values()}
         # Go through each word in the FastText model
         for i, word in tqdm(
@@ -295,7 +297,7 @@ def train_embeddings(
     )
 
 
-def load_embeddings(identifier: str, verbose=True, aligned=False, cache_dir=CACHE_DIR):
+def load_embeddings(identifier: str, verbose=True, emb_type="crawl", cache_dir=CACHE_DIR):
     """
     Utility function to download and cache embeddings from https://fasttext.cc.
     https://github.com/CPJKU/wechsel/blob/395e3d446ecc1f000aaf4dea2da2003d16203f0b/wechsel/__init__.py#L184-L211
@@ -306,7 +308,7 @@ def load_embeddings(identifier: str, verbose=True, aligned=False, cache_dir=CACH
     Args:
         identifier: 2-letter language code or path to a fasttext model.
         verbose: Whether to print download progress.
-        aligned: Whether to download aligned embeddings.
+        emb_type: Which type of fastText embeddings to load.
         cache_dir: Directory to cache the embeddings.
 
     Returns:
@@ -314,7 +316,7 @@ def load_embeddings(identifier: str, verbose=True, aligned=False, cache_dir=CACH
     """
     if isinstance(cache_dir, str):
         cache_dir = Path(cache_dir)
-    if not aligned:
+    if emb_type == "crawl":
         if os.path.exists(identifier):
             path = Path(identifier)
         else:
@@ -331,16 +333,8 @@ def load_embeddings(identifier: str, verbose=True, aligned=False, cache_dir=CACH
                 )
                 path = gunzip(path)
         return WordEmbedding(fasttext.load_model(str(path)))
-    else:
-        vector_path = cache_dir / "pretrained_fasttext" / f"wiki.{identifier}.align.vec"
-        if not vector_path.exists():
-            vector_path = download(
-                f"https://dl.fbaipublicfiles.com/fasttext/vectors-aligned/wiki.{identifier}.align.vec",
-                cache_dir / "pretrained_fasttext" / f"wiki.{identifier}.align.vec",
-                verbose=verbose,
-            )
-        aligned_vectors = load_vec(str(vector_path))
-
+    elif emb_type == "wiki" or emb_type == "aligned":
+        # In the aligned case we need to load the original model as well to obtain the frequencies
         model_path = cache_dir / "pretrained_fasttext" / f"wiki.{identifier}" / f"wiki.{identifier}.bin"
         if not model_path.exists():
             archive_path = download(
@@ -350,7 +344,21 @@ def load_embeddings(identifier: str, verbose=True, aligned=False, cache_dir=CACH
             )
             _ = gunzip(archive_path)
         model = fasttext.load_model(str(model_path))
-        return WordEmbedding(model, aligned_vectors)
+
+        if emb_type == "aligned":
+            vector_path = cache_dir / "pretrained_fasttext" / f"wiki.{identifier}.align.vec"
+            if not vector_path.exists():
+                vector_path = download(
+                    f"https://dl.fbaipublicfiles.com/fasttext/vectors-aligned/wiki.{identifier}.align.vec",
+                    cache_dir / "pretrained_fasttext" / f"wiki.{identifier}.align.vec",
+                    verbose=verbose,
+                )
+            aligned_vectors = load_vec(str(vector_path))
+            return WordEmbedding(model, aligned_vectors)
+        else:
+            return WordEmbedding(model)
+    else:
+        raise ValueError(f"Unknown embedding type: {emb_type}.")
 
 
 class WechselTokenizerTransfer(OverlapTokenizerTransfer):
@@ -362,7 +370,9 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
             bilingual_dictionary: Optional[str] = None,
             source_language_identifier: Optional[str] = None,
             target_language_identifier: Optional[str] = None,
+            emb_type: str = "crawl",
             align_strategy: Optional[str] = "bilingual_dictionary",
+            align_matrix_path: Optional[str] = None,
             use_subword_info: bool = True,
             max_n_word_vectors: Optional[int] = None,
             neighbors: int = 10,
@@ -415,10 +425,13 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
                 stored as part of WECHSEL (https://github.com/CPJKU/wechsel/tree/main/dicts).
         :param source_language_identifier: Two-letter language code for downloading pretrained fasttext word embeddings if using `fasttext-wordlevel`. Defaults to None.
         :param target_language_identifier: Two-letter language code for downloading pretrained fasttext word embeddings if using `fasttext-wordlevel`. Defaults to None.
+        :param emb_type: Type of embeddings to use for the target language. Defaults to "crawl".
         :param align_strategy: either of "bilingual_dictionary" or `None`.
                 - If `None`, embeddings are treated as already aligned.
                 - If "bilingual dictionary", a bilingual dictionary must be passed
                     which will be used to align the embeddings using the Orthogonal Procrustes method.
+                - If "align matrix", a matrix must be passed which will be used to align the embeddings.
+        :param align_matrix_path: Path to alignment matrix to align the embeddings if `align_strategy` is "align matrix". Defaults to None.
         :param use_subword_info: Whether to use fastText subword information. Defaults to True.
         :param max_n_word_vectors: Maximum number of vectors to consider (only relevant if `use_subword_info` is False). Defaults to None.
         :param neighbors: Number of neighbors to consider for initializing embeddings. Defaults to 10.
@@ -442,7 +455,9 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
         self.bilingual_dictionary = bilingual_dictionary
         self.source_language_identifier = source_language_identifier
         self.target_language_identifier = target_language_identifier
+        self.emb_type = emb_type
         self.align_strategy = align_strategy
+        self.align_matrix_path = align_matrix_path
         self.use_subword_info = use_subword_info
         self.max_n_word_vectors = max_n_word_vectors
         self.neighbors = neighbors
@@ -468,13 +483,13 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
         logger.info(f"Loading fastText embeddings for source language ({self.source_language_identifier})...")
         fasttext_source_embeddings = load_embeddings(
             identifier=self.source_language_identifier,
-            aligned=self.align_strategy is None,
+            emb_type="aligned" if self.align_strategy is None else self.emb_type,
             cache_dir=Path(cache_dir)
         )
         logger.info(f"Loading fastText embeddings for target language ({self.target_language_identifier})...")
         fasttext_target_embeddings = load_embeddings(
             identifier=self.target_language_identifier,
-            aligned=self.align_strategy is None,
+            emb_type="aligned" if self.align_strategy is None else self.emb_type,
             cache_dir=Path(cache_dir)
         )
         min_dim = min(
@@ -485,6 +500,7 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
         if fasttext_target_embeddings.get_dimension() != min_dim:
             fasttext.util.reduce_model(fasttext_target_embeddings.model, min_dim)
 
+        # Get transformation matrix to align source embeddings with target embeddings
         if align_strategy == "bilingual_dictionary":
             if bilingual_dictionary is None:
                 raise ValueError(
@@ -511,6 +527,15 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
                 dictionary=dictionary
             )
             self.source_transform = lambda matrix: matrix @ align_matrix
+            self.target_transform = lambda x: x
+        elif self.align_strategy == "align matrix":
+            if self.align_matrix_path is None:
+                raise ValueError(
+                    "`align_matrix_path` must not be `None` if `align_strategy` is 'align matrix'."
+                )
+            align_matrix = load_matrix(self.align_matrix_path)
+            # Following Joulin et al. (2018) https://github.com/facebookresearch/fastText/blob/main/alignment/align.py#L142
+            self.source_transform = lambda matrix: np.dot(matrix, align_matrix.T)
             self.target_transform = lambda x: x
         elif align_strategy is None:
             self.source_transform = lambda x: x

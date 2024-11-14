@@ -68,6 +68,12 @@ def parse_args():
         help="Bilingual dictionary file path"
     )
     parser.add_argument(
+        "--align_matrix_path",
+        type=str,
+        default=None,
+        help="Alignment matrix path"
+    )
+    parser.add_argument(
         "--aligned_data_path",
         type=str,
         default=None,
@@ -95,6 +101,8 @@ def parse_args():
     # Set some default values for paths
     if args.bilingual_dictionary is None:
         args.bilingual_dictionary = os.path.join(parent_dir, "bilingual_dictionary/MUSE/en-vi.txt")
+    if args.align_matrix_path is None:
+        args.align_matrix_path = os.path.join(parent_dir, "alignment/res/cc-en-vi.vec-mat")
     if args.aligned_data_path is None:
         args.aligned_data_path = os.path.join(parent_dir, "data/parallel_data/OpenSubtitles")
     if args.target_training_data_path is None:
@@ -194,6 +202,30 @@ def wechsel_aligned_embedding_initialization(
     return transfer_pipeline.get_transfer_statistics()
 
 
+def wechsel_rcsls_embedding_initialization(
+        output_dir,
+        align_matrix_path,
+        source_model_name="FacebookAI/roberta-base",
+        target_tokenizer_name="phucdev/vi-bpe-culturax-4g-sample",
+        source_language_identifier="en",
+        target_language_identifier="vi"
+):
+    transfer_pipeline = WechselTokenizerTransfer(
+        source_model_name,
+        target_tokenizer_name,
+        align_strategy="align_matrix",
+        align_matrix_path=align_matrix_path,
+        emb_type="crawl",
+        use_subword_info=False,
+        bilingual_dictionary=None,
+        source_language_identifier=source_language_identifier,
+        target_language_identifier=target_language_identifier,
+        target_model_path=os.path.join(output_dir, "wechsel_aligned_initialization"),
+    )
+    transfer_pipeline.transfer()
+    return transfer_pipeline.get_transfer_statistics()
+
+
 def wechsel_overlap_embedding_initialization(
         output_dir,
         bilingual_dictionary,
@@ -277,6 +309,7 @@ def main():
     source_language_identifier = args.source_language_identifier
     target_language_identifier = args.target_language_identifier
     bilingual_dictionary = args.bilingual_dictionary
+    align_matrix_path = args.align_matrix_path
     aligned_data_path = args.aligned_data_path
     corpus = args.corpus
     target_training_data_path = args.target_training_data_path
@@ -286,7 +319,7 @@ def main():
 
     logger.info(f"Args: {transfer_type=}, {source_model_name=}, {target_tokenizer_name=}, {output_dir=}")
     if transfer_type == "monolingual":
-        logger.info("(1/6) Random initialization")
+        logger.info("(1/7) Random initialization")
         with measure_time() as timer:
             transfer_statistics["random_monolingual"] = random_embedding_initialization(
                 output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name
@@ -295,7 +328,7 @@ def main():
         transfer_statistics["random_monolingual"]["elapsed_time"] = elapsed_time
         logger.info(f"Elapsed time: {format_time(elapsed_time)}")
 
-        logger.info("(2/6) RAMEN initialization")
+        logger.info("(2/7) RAMEN initialization")
         with measure_time() as timer:
             transfer_statistics["RAMEN"] = ramen_embedding_initialization(
                 output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name,
@@ -306,7 +339,7 @@ def main():
         transfer_statistics["RAMEN"]["elapsed_time"] = elapsed_time
         logger.info(f"Elapsed time: {format_time(elapsed_time)}")
 
-        logger.info("(3/6) WECHSEL initialization")
+        logger.info("(3/7) WECHSEL initialization")
         with measure_time() as timer:
             transfer_statistics["WECHSEL"] = wechsel_embedding_initialization(
                 output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name,
@@ -316,7 +349,7 @@ def main():
         transfer_statistics["WECHSEL"]["elapsed_time"] = elapsed_time
         logger.info(f"Elapsed time: {format_time(elapsed_time)}")
 
-        logger.info("(4/6) WECHSEL+pre-aligned auxiliary embeddings initialization")
+        logger.info("(4/7) WECHSEL+pre-aligned auxiliary embeddings initialization")
         with measure_time() as timer:
             transfer_statistics["WECHSEL+aligned"] = wechsel_aligned_embedding_initialization(
                 output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name
@@ -325,7 +358,17 @@ def main():
         transfer_statistics["WECHSEL+aligned"]["elapsed_time"] = elapsed_time
         logger.info(f"Elapsed time: {format_time(elapsed_time)}")
 
-        logger.info("(5/6) WECHSEL+overlap initialization")
+        logger.info("(5/7) WECHSEL+RCSLS embeddings initialization")
+        with measure_time() as timer:
+            transfer_statistics["WECHSEL+rcsls"] = wechsel_rcsls_embedding_initialization(
+                output_dir=output_dir, align_matrix_path=align_matrix_path,
+                source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name
+            )
+        elapsed_time = timer()
+        transfer_statistics["WECHSEL+rcsls"]["elapsed_time"] = elapsed_time
+        logger.info(f"Elapsed time: {format_time(elapsed_time)}")
+
+        logger.info("(6/7) WECHSEL+overlap initialization")
         with measure_time() as timer:
             transfer_statistics["WECHSEL+overlap"] = wechsel_overlap_embedding_initialization(
                 output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name,
@@ -335,7 +378,7 @@ def main():
         transfer_statistics["WECHSEL+overlap"]["elapsed_time"] = elapsed_time
         logger.info(f"Elapsed time: {format_time(elapsed_time)}")
 
-        logger.info("(6/6) FOCUS initialization")
+        logger.info("(7/7) FOCUS initialization")
         with measure_time() as timer:
             transfer_statistics["FOCUS_monolingual"] = focus_monolingual_embedding_initialization(
                 output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name,

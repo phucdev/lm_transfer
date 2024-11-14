@@ -8,8 +8,8 @@
 set -e
 s=${1:-en}
 t=${2:-vi}
-src_tokenizer=${3:-none}
-tgt_tokenizer=${4:-none}
+src_tokenizer=${3:-''}
+tgt_tokenizer=${4:-''}
 echo "Aligning embeddings for ${s}->${t}"
 
 if [ ! -d data/ ]; then

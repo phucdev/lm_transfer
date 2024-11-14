@@ -118,6 +118,23 @@ def save_matrix(fname, x):
     fout.close()
 
 
+def load_matrix(file_path):
+    """Load alignment matrix from a file. That matrix can be computed using Procrustes or RCSLS."""
+    with open(file_path, 'r') as f:
+        # Read the first line to get the dimensions of the matrix
+        n, d = map(int, f.readline().split())
+
+        # Initialize an empty matrix
+        matrix = np.zeros((n, d))
+
+        # Read the rest of the file to fill the matrix
+        for i, line in enumerate(f):
+            values = list(map(float, line.split()))
+            matrix[i, :] = values
+
+    return matrix
+
+
 def procrustes(X_src, Y_tgt):
     U, s, V = np.linalg.svd(np.dot(Y_tgt.T, X_src))
     return np.dot(U, V)

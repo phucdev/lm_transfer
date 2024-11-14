@@ -102,7 +102,7 @@ def parse_args():
     if args.bilingual_dictionary is None:
         args.bilingual_dictionary = os.path.join(parent_dir, "bilingual_dictionary/MUSE/en-vi.txt")
     if args.align_matrix_path is None:
-        args.align_matrix_path = os.path.join(parent_dir, "alignment/res/cc-en-vi.vec-mat")
+        args.align_matrix_path = os.path.join(parent_dir, "alignment/res/cc.en-vi.vec-mat")
     if args.aligned_data_path is None:
         args.aligned_data_path = os.path.join(parent_dir, "data/parallel_data/OpenSubtitles")
     if args.target_training_data_path is None:
@@ -213,14 +213,14 @@ def wechsel_rcsls_embedding_initialization(
     transfer_pipeline = WechselTokenizerTransfer(
         source_model_name,
         target_tokenizer_name,
-        align_strategy="align_matrix",
+        align_strategy="align matrix",
         align_matrix_path=align_matrix_path,
         emb_type="crawl",
-        use_subword_info=False,
+        use_subword_info=True,
         bilingual_dictionary=None,
         source_language_identifier=source_language_identifier,
         target_language_identifier=target_language_identifier,
-        target_model_path=os.path.join(output_dir, "wechsel_aligned_initialization"),
+        target_model_path=os.path.join(output_dir, "wechsel_rcsls_initialization"),
     )
     transfer_pipeline.transfer()
     return transfer_pipeline.get_transfer_statistics()

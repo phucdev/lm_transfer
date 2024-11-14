@@ -480,16 +480,17 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
         self.transfer_method = "wechsel"
 
         # Adapts: https://github.com/CPJKU/wechsel/blob/395e3d446ecc1f000aaf4dea2da2003d16203f0b/wechsel/__init__.py#L350-L422
-        logger.info(f"Loading fastText embeddings for source language ({self.source_language_identifier})...")
+        effective_emb_type = "aligned" if self.align_strategy is None else self.emb_type
+        logger.info(f"Loading fastText embeddings ({effective_emb_type}) for source language ({self.source_language_identifier})...")
         fasttext_source_embeddings = load_embeddings(
             identifier=self.source_language_identifier,
-            emb_type="aligned" if self.align_strategy is None else self.emb_type,
+            emb_type=effective_emb_type,
             cache_dir=Path(cache_dir)
         )
-        logger.info(f"Loading fastText embeddings for target language ({self.target_language_identifier})...")
+        logger.info(f"Loading fastText embeddings ({effective_emb_type}) for target language ({self.target_language_identifier})...")
         fasttext_target_embeddings = load_embeddings(
             identifier=self.target_language_identifier,
-            emb_type="aligned" if self.align_strategy is None else self.emb_type,
+            emb_type=effective_emb_type,
             cache_dir=Path(cache_dir)
         )
         min_dim = min(

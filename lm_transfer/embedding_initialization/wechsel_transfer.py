@@ -200,8 +200,6 @@ def get_subword_embeddings_in_word_embedding_space(
         # Mentioned in Appendix D of the paper for models without subword information:
         #  The embedding of a subword (target token) is defined as the average of the embeddings of words
         #  that contain the subword in their decomposition weighted by their word frequencies.
-        # TODO with the wiki vectors using this method somehow results in lot more randomly initialized tokens
-        #  meaning that the subword embeddings are not being found in the fasttext model
         embs = {value: [] for value in tokenizer.get_vocab().values()}
         # Go through each word in the FastText model
         for i, word in tqdm(
@@ -220,7 +218,7 @@ def get_subword_embeddings_in_word_embedding_space(
                     embs[token_id].append(i)
 
         for i in range(len(embs_matrix)):
-            # If the token is not in the FastText model, the embedding is set to zero
+            # If the token is not in the FastText model, the embedding is set to zero -> random initialization later
             if len(embs[i]) == 0:
                 continue
             # Weight is the relative frequency of the word in the FastText model
@@ -648,6 +646,10 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
         """
         def get_n_closest(token_id, similarities, top_k):
             if np.asarray(target_subword_embeddings[token_id] == 0).all():
+                # If the subword embedding could not be calculated for the target token, it is set to zero
+                # and its actual embedding will be initialized randomly later
+                # This is the case when not using subword information and the token is not part of any word in the
+                # FastText model
                 return None
 
             best_indices = np.argpartition(similarities, -top_k)[-top_k:]

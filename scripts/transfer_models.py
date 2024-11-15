@@ -186,7 +186,9 @@ def wechsel_aligned_embedding_initialization(
         source_model_name="FacebookAI/roberta-base",
         target_tokenizer_name="phucdev/vi-bpe-culturax-4g-sample",
         source_language_identifier="en",
-        target_language_identifier="vi"
+        target_language_identifier="vi",
+        leverage_overlap=False,
+        overwrite_with_overlap=False
 ):
     transfer_pipeline = WechselTokenizerTransfer(
         source_model_name,
@@ -197,6 +199,8 @@ def wechsel_aligned_embedding_initialization(
         source_language_identifier=source_language_identifier,
         target_language_identifier=target_language_identifier,
         target_model_path=os.path.join(output_dir, "wechsel_aligned_initialization"),
+        leverage_overlap=leverage_overlap,
+        overwrite_with_overlap=overwrite_with_overlap
     )
     transfer_pipeline.transfer()
     return transfer_pipeline.get_transfer_statistics()
@@ -352,7 +356,8 @@ def main():
         logger.info("(4/7) WECHSEL+pre-aligned auxiliary embeddings initialization")
         with measure_time() as timer:
             transfer_statistics["WECHSEL+aligned"] = wechsel_aligned_embedding_initialization(
-                output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name
+                output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name,
+                leverage_overlap=True, overwrite_with_overlap=True
             )
         elapsed_time = timer()
         transfer_statistics["WECHSEL+aligned"]["elapsed_time"] = elapsed_time

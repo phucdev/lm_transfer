@@ -3,11 +3,10 @@ import logging
 import argparse
 import requests
 import time
-import json
 import numpy as np
 
 from pathlib import Path
-from tokenizers import pre_tokenizers
+from tokenizers import pre_tokenizers, normalizers
 from datasets import IterableDataset
 from transformers import AutoTokenizer
 from rich.logging import RichHandler
@@ -76,12 +75,6 @@ def parse_args():
         action="store_true",
         default=False,
         help="Stream the dataset from the Hugging Face hub",
-    )
-    parser.add_argument(
-        "--split_by_punctuation",
-        action="store_true",
-        default=False,
-        help="Split the input by punctuation during pre-tokenization"
     )
     parser.add_argument(
         "--original_tokenizer",
@@ -202,17 +195,8 @@ def main():
 
     old_tokenizer = AutoTokenizer.from_pretrained(args.original_tokenizer)
     assert old_tokenizer.is_fast, "This script only works with fast tokenizers"
-    logger.info(f"Training new tokenizer based on {args.original_tokenizer}")
-    if args.split_by_punctuation:
-        # Access the backend tokenizer
-        backend_tokenizer = old_tokenizer.backend_tokenizer
 
-        # Modify the pre_tokenizer to include Punctuation splitting
-        backend_tokenizer.pre_tokenizer = pre_tokenizers.Sequence([
-            pre_tokenizers.WhitespaceSplit(),
-            pre_tokenizers.Punctuation(),
-            pre_tokenizers.Metaspace(replacement='▁', prepend_scheme='always', split=True)
-        ])
+    logger.info(f"Training new tokenizer based on {args.original_tokenizer}")
     tokenizer = old_tokenizer.train_new_from_iterator(
         training_corpus,
         vocab_size=args.vocab_size,

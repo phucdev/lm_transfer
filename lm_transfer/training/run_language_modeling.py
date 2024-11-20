@@ -885,32 +885,32 @@ def main():
                     accelerator.log(log_dict, step=completed_steps)
                     batch_loss = 0
 
-            if isinstance(eval_steps, int):
-                if completed_steps % eval_steps == 0:
-                    logger.info(f"epoch {epoch}: step {completed_steps}: evaluating model")
-                    eval_loss, perplexity = validate_model(
-                        model, shuffled_eval_dataloader, accelerator, args.per_device_eval_batch_size, args.eval_iters
-                    )
-                    logger.info(
-                        f"epoch {epoch}: step {completed_steps}: perplexity: {perplexity} eval_loss: {eval_loss}")
-                    if args.with_tracking:
-                        accelerator.log({
-                            "eval/loss": eval_loss,
-                            "eval/perplexity": perplexity,
-                            "epoch": epoch,
-                            "step": completed_steps,
-                            "consumed_train_tokens": completed_steps * total_batch_size * block_size
-                        }, step=completed_steps)
-                    model.train()
+                if isinstance(eval_steps, int):
+                    if completed_steps % eval_steps == 0:
+                        logger.info(f"epoch {epoch}: step {completed_steps}: evaluating model")
+                        eval_loss, perplexity = validate_model(
+                            model, shuffled_eval_dataloader, accelerator, args.per_device_eval_batch_size, args.eval_iters
+                        )
+                        logger.info(
+                            f"epoch {epoch}: step {completed_steps}: perplexity: {perplexity} eval_loss: {eval_loss}")
+                        if args.with_tracking:
+                            accelerator.log({
+                                "eval/loss": eval_loss,
+                                "eval/perplexity": perplexity,
+                                "epoch": epoch,
+                                "step": completed_steps,
+                                "consumed_train_tokens": completed_steps * total_batch_size * block_size
+                            }, step=completed_steps)
+                        model.train()
 
-            if isinstance(checkpointing_steps, int):
-                if completed_steps % checkpointing_steps == 0:
-                    output_dir = f"step_{completed_steps}"
-                    if args.output_dir is not None:
-                        output_dir = os.path.join(args.output_dir, output_dir)
-                    accelerator.save_state(output_dir)
-            if completed_steps >= args.max_train_steps:
-                break
+                if isinstance(checkpointing_steps, int):
+                    if completed_steps % checkpointing_steps == 0:
+                        output_dir = f"step_{completed_steps}"
+                        if args.output_dir is not None:
+                            output_dir = os.path.join(args.output_dir, output_dir)
+                        accelerator.save_state(output_dir)
+                if completed_steps >= args.max_train_steps:
+                    break
 
         if args.eval_steps == "epoch":
             # Evaluate on the whole validation split at the end of each epoch

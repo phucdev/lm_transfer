@@ -3,12 +3,12 @@ import logging
 import argparse
 import requests
 import time
+import json
 import numpy as np
 
 from pathlib import Path
-
+from tokenizers import pre_tokenizers
 from datasets import IterableDataset
-from tokenizers import normalizers
 from transformers import AutoTokenizer
 from rich.logging import RichHandler
 
@@ -70,6 +70,18 @@ def parse_args():
         type=int,
         default=4,
         help="Number of processes to use when filtering out long texts from the dataset",
+    )
+    parser.add_argument(
+        "--stream",
+        action="store_true",
+        default=False,
+        help="Stream the dataset from the Hugging Face hub",
+    )
+    parser.add_argument(
+        "--split_by_punctuation",
+        action="store_true",
+        default=False,
+        help="Split the input by punctuation during pre-tokenization"
     )
     parser.add_argument(
         "--original_tokenizer",
@@ -147,23 +159,24 @@ def get_num_words(data):
 def main():
     args = parse_args()
     logger.info(f"Training tokenizer on {args.dataset_name_or_path} with vocab size {args.vocab_size}")
-    # Local dataset
-    if Path(args.dataset_name_or_path).exists():
-        logger.info(f"Loading dataset from local file: {args.dataset_name_or_path}")
-        data = datasets.load_dataset("json", data_files=args.dataset_name_or_path, split="train")
-        original_size = len(data)
-        if args.max_num_space_separated_tokens and args.max_num_space_separated_tokens > 0:
-            data = data.filter(lambda x: len(x["text"].split()) <= args.max_num_space_separated_tokens,
-                               num_proc=args.num_proc)
-        elif args.max_num_bytes and args.max_num_bytes > 0:
-            data = data.filter(lambda x: sentence_length_in_bytes(x["text"]) <= args.max_num_bytes,
-                               num_proc=args.num_proc)
-        logger.info(f"Filtered out long texts with >{args.max_num_space_separated_tokens} space separated tokens. "
-                    f"Original dataset size: {original_size}. New dataset size: {len(data)}")
-        training_corpus = batch_iterator(data)
+    if args.stream:
+        # Stream the dataset for training the tokenizer
+        logger.info(f"Streaming {args.dataset_name_or_path} from the Hugging Face hub")
+        data = datasets.load_dataset(
+            args.dataset_name_or_path, args.dataset_config_name, split="train", streaming=True
+        )
+        training_corpus = streaming_batch_iterator(
+            data,
+            batch_size=args.batch_size,
+            max_num_space_separated_tokens=args.max_num_space_separated_tokens,
+            max_num_bytes=args.max_num_bytes,
+        )
     else:
-        # Load dataset from the Hugging Face hub
-        if args.cache_dir:
+        # Use local dataset/ load the entire dataset from the Hugging Face hub
+        if Path(args.dataset_name_or_path).exists():
+            logger.info(f"Loading dataset from local file: {args.dataset_name_or_path}")
+            data = datasets.load_dataset("json", data_files=args.dataset_name_or_path, split="train")
+        else:
             logger.info(f"Loading {args.dataset_name_or_path} dataset from the Hugging Face hub")
             data = datasets.load_dataset(
                 args.dataset_name_or_path,
@@ -171,38 +184,35 @@ def main():
                 split="train",
                 cache_dir=args.cache_dir
             )
-            original_size = len(data)
-            if args.max_num_space_separated_tokens and args.max_num_space_separated_tokens > 0:
-                data = data.filter(lambda x: len(x["text"].split()) <= args.max_num_space_separated_tokens,
-                                   num_proc=args.num_proc)
-                logger.info(
-                    f"Filtered out long texts with >{args.max_num_space_separated_tokens} space separated tokens. "
-                    f"Original dataset size: {original_size}. New dataset size: {len(data)}")
-            elif args.max_num_bytes and args.max_num_bytes > 0:
-                data = data.filter(lambda x: sentence_length_in_bytes(x["text"]) <= args.max_num_bytes,
-                                   num_proc=args.num_proc)
-                logger.info(
-                    f"Filtered out long texts with >{args.max_num_bytes} bytes. "
-                    f"Original dataset size: {original_size}. New dataset size: {len(data)}")
+        original_size = len(data)
+        if args.max_num_space_separated_tokens and args.max_num_space_separated_tokens > 0:
+            data = data.filter(lambda x: len(x["text"].split()) <= args.max_num_space_separated_tokens,
+                               num_proc=args.num_proc)
+            logger.info(
+                f"Filtered out long texts with >{args.max_num_space_separated_tokens} space separated tokens. "
+                f"Original dataset size: {original_size}. New dataset size: {len(data)}")
+        elif args.max_num_bytes and args.max_num_bytes > 0:
+            data = data.filter(lambda x: sentence_length_in_bytes(x["text"]) <= args.max_num_bytes,
+                               num_proc=args.num_proc)
+            logger.info(
+                f"Filtered out long texts with >{args.max_num_bytes} bytes. "
+                f"Original dataset size: {original_size}. New dataset size: {len(data)}")
 
-            training_corpus = batch_iterator(data, batch_size=args.batch_size)
-        else:
-            # Stream the dataset (default)
-            logger.info(f"Streaming {args.dataset_name_or_path} from the Hugging Face hub")
-            data = datasets.load_dataset(
-                args.dataset_name_or_path, args.dataset_config_name, split="train", streaming=True
-            )
-            training_corpus = streaming_batch_iterator(
-                data,
-                batch_size=args.batch_size,
-                max_num_space_separated_tokens=args.max_num_space_separated_tokens,
-                max_num_bytes=args.max_num_bytes,
-            )
+        training_corpus = batch_iterator(data, batch_size=args.batch_size)
 
     old_tokenizer = AutoTokenizer.from_pretrained(args.original_tokenizer)
     assert old_tokenizer.is_fast, "This script only works with fast tokenizers"
     logger.info(f"Training new tokenizer based on {args.original_tokenizer}")
-    old_tokenizer.normalizer = normalizers.NFKC()
+    if args.split_by_punctuation:
+        # Access the backend tokenizer
+        backend_tokenizer = old_tokenizer.backend_tokenizer
+
+        # Modify the pre_tokenizer to include Punctuation splitting
+        backend_tokenizer.pre_tokenizer = pre_tokenizers.Sequence([
+            pre_tokenizers.WhitespaceSplit(),
+            pre_tokenizers.Punctuation(),
+            pre_tokenizers.Metaspace(replacement='▁', prepend_scheme='always', split=True)
+        ])
     tokenizer = old_tokenizer.train_new_from_iterator(
         training_corpus,
         vocab_size=args.vocab_size,

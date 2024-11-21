@@ -789,8 +789,11 @@ def main():
         experiment_config = vars(args)
         # TensorBoard cannot log Enums, need the raw value
         experiment_config["lr_scheduler_type"] = experiment_config["lr_scheduler_type"].value
+        if args.run_name is None and args.output_dir is not None:
+            logger.info("No run name provided, using the output directory name.")
+            args.run_name = f"{args.output_dir.split('/')[-1]}"
         accelerator.init_trackers(project_name=args.project_name, config=experiment_config,
-                                  init_kwargs={"wandb": {"name": args.run_name}} if args.run_name else None)
+                                  init_kwargs={"wandb": {"name": args.run_name}} if args.run_name else {})
 
     # Train!
     total_batch_size = args.per_device_train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps

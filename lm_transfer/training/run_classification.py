@@ -665,30 +665,28 @@ def main():
 
     if training_args.do_predict:
         logger.info("*** Predict ***")
-        # Removing the `label` columns if exists because it might contains -1 and Trainer won't like that.
+        # Removing the `label` columns if exists because it might contain -1 and Trainer won't like that.
         if "label" in predict_dataset.features:
             predict_dataset = predict_dataset.remove_columns("label")
-        predictions = trainer.predict(predict_dataset, metric_key_prefix="predict").predictions
-        if is_multi_label:
-            # Convert logits to multi-hot encoding. We compare the logits to 0 instead of 0.5, because the sigmoid is not applied.
-            # You can also pass `preprocess_logits_for_metrics=lambda logits, labels: nn.functional.sigmoid(logits)` to the Trainer
-            # and set p > 0.5 below (less efficient in this case)
-            predictions = np.array([np.where(p > 0, 1, 0) for p in predictions])
-        else:
-            predictions = np.argmax(predictions, axis=1)
-        output_predict_file = os.path.join(training_args.output_dir, "predict_results.txt")
+        predictions, labels, metrics = trainer.predict(predict_dataset, metric_key_prefix="predict")
+
+        max_predict_samples = (
+            data_args.max_predict_samples if data_args.max_predict_samples is not None else len(predict_dataset)
+        )
+        metrics["predict_samples"] = min(max_predict_samples, len(predict_dataset))
+
+        trainer.log_metrics("predict", metrics)
+        trainer.save_metrics("predict", metrics)
+
+        predictions = np.argmax(predictions, axis=1)
+        output_predict_file = os.path.join(training_args.output_dir, "predictions.txt")
         if trainer.is_world_process_zero():
             with open(output_predict_file, "w") as writer:
                 logger.info("***** Predict results *****")
                 writer.write("index\tprediction\n")
                 for index, item in enumerate(predictions):
-                    if is_multi_label:
-                        # recover from multi-hot encoding
-                        item = [label_list[i] for i in range(len(item)) if item[i] == 1]
-                        writer.write(f"{index}\t{item}\n")
-                    else:
-                        item = label_list[item]
-                        writer.write(f"{index}\t{item}\n")
+                    item = label_list[item]
+                    writer.write(f"{index}\t{item}\n")
         logger.info("Predict results saved at {}".format(output_predict_file))
     kwargs = {"finetuned_from": model_args.model_name_or_path, "tasks": "text-classification"}
 

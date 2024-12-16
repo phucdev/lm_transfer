@@ -339,7 +339,11 @@ def main():
     target_training_data_path = args.target_training_data_path
     statistics_file = args.statistics_file
 
-    transfer_statistics = {}
+    if os.path.exists(statistics_file):
+        with open(statistics_file, "r") as f:
+            transfer_statistics = json.load(f)
+    else:
+        transfer_statistics = {}
 
     logger.info(f"Args: {transfer_type=}, {source_model_name=}, {target_tokenizer_name=}, {output_dir=}")
     if transfer_type == "monolingual":
@@ -416,7 +420,7 @@ def main():
     elif transfer_type == "multilingual":
         logger.info("(1/3) Random initialization")
         with measure_time() as timer:
-            transfer_statistics["random"] = random_embedding_initialization(
+            transfer_statistics["random_multilingual"] = random_embedding_initialization(
                 output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name
             )
         elapsed_time = timer()

@@ -14,7 +14,7 @@ Repo for my master thesis on Cross-lingual transfer of pre-trained language mode
 3. Install fast_align
     ```bash
     sudo apt-get install libgoogle-perftools-dev libsparsehash-dev build-essential
-    chmod +x install_fast_align.sh
+    chmod +x scripts/install_fast_align.sh
     ./scripts/install_fast_align.sh
     ```
    
@@ -71,6 +71,25 @@ You can access the Vietnamese tokenizers on the huggingface hub or reproduce the
     ```
 
 ## Embedding Initialization/Tokenizer Transfer
+I implemented several methods to "cleverly" initialize embeddings.
+Running the following script will apply all the methods to transfer the embeddings from the source model to the target language.
+```bash
+python scripts/transfer_models.py \
+    --output_dir models/transfer/monolingual \
+    --transfer_type monolingual \
+    --source_model_name FacebookAI/roberta-base \
+    --target_tokenizer_name phucdev/vi-bpe-culturax-4g-sample \
+    --statistics_file models/transfer/monolingual/transfer_statistics.json
+```
+To transfer a multilingual source model to a target language you can run:
+```bash
+python scripts/transfer_models.py \
+    --output_dir models/transfer/multilingual \
+    --transfer_type multilingual \
+    --source_model_name xlm-roberta-base \
+    --target_tokenizer_name phucdev/vi-spm-culturax-4g-sample \
+    --statistics_file models/transfer/multilingual/transfer_statistics.json
+```
 
 ### RAMEN (Tran, 2020)
 lm_transfer/embedding_initialization/ramen_transfer.py
@@ -211,11 +230,45 @@ language word with the target language tokenizer. We track how often a source la
 language word in translation pairs. We use this normalized frequency matrix to determine how much a source language
 word embeddings contributes to the initialization of a target language word embedding.
 
-## Continued Pre-training
-TODO
+## Language Adaptive Pre-Training (LAPT)
+Use the following script to perform LAPT on the CulturaX dataset:
+```bash
+accelerate launch lm_transfer/training/run_language_modeling.py \
+  --with_tracking \
+  --report_to=wandb \
+  --project_name=master-thesis \
+  --run_name=roberta-random_init \
+  --model_name_or_path=models/random_initialization \
+  --num_train_epochs=1 \
+  --preprocessing_num_workers=4 \
+  --per_device_train_batch_size=32 \
+  --per_device_eval_batch_size=32 \
+  --language_modeling_objective=mlm \
+  --output_dir=results/roberta-random_init \
+  --eval_steps=300 \
+  --eval_iters=50 \
+  --train_file data/culturax_vi/train.json \
+  --validation_file data/culturax_vi/valid.json \
+  --learning_rate 6e-4 \
+  --adam_epsilon 1e-8 \
+  --beta1 0.9 \
+  --beta2 0.999 \
+  --lr_scheduler_type constant_with_warmup \
+  --num_warmup_steps 2613 \
+  --block_size 512 \
+  --seed 42
+```
 
 ## Training and Evaluation on downstream tasks
-TODO
+Use the following scripts to train and evaluate a model on the downstream tasks:
+- XNLI: `bash scripts/xnli_finetune.sh`
+- ViHSD: `bash scripts/vihsd_finetune.sh`
+- PhoNER COVID19: `bash scripts/phoner_finetune.sh`
+- MLQA: `bash scripts/mlqa_finetune.sh`
+
+Adjust the parameters in the bash scripts to your needs. Each script performs 5 runs with random seeds, so you can
+average the results to get a more robust estimate of the performance.
+
 
 ## Clean up
 The scripts in this repository often download files to the `.cache`.

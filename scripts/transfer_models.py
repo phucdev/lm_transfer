@@ -97,6 +97,18 @@ def parse_args():
         default=None,
         help="File path to store transfer statistics"
     )
+    parser.add_argument(
+        "--processes",
+        type=int,
+        default=None,
+        help="Number of processes for FOCUS initialization"
+    )
+    parser.add_argument(
+        "--fasttext_model_dim",
+        type=int,
+        default=300,
+        help="FastText model dimension for FOCUS initialization"
+    )
     args = parser.parse_args()
     # Set some default values for paths
     if args.bilingual_dictionary is None:
@@ -257,14 +269,17 @@ def focus_monolingual_embedding_initialization(
         target_training_data_path,
         source_model_name="FacebookAI/roberta-base",
         target_tokenizer_name="phucdev/vi-bpe-culturax-4g-sample",
-        language_identifier="vi"
+        language_identifier="vi",
+        processes=None,
+        fasttext_model_dim=300
 ):
     transfer_pipeline = FocusTokenizerTransfer(
         source_model_name,
         target_tokenizer_name,
         language_identifier=language_identifier,
         target_training_data_path=target_training_data_path,
-        processes=1,
+        processes=processes,
+        fasttext_model_dim=fasttext_model_dim,
         target_model_path=os.path.join(output_dir, "focus_monolingual_initialization")
     )
     transfer_pipeline.transfer()
@@ -290,14 +305,17 @@ def focus_multilingual_embedding_initialization(
         target_training_data_path,
         source_model_name="FacebookAI/xlm-roberta-base",
         target_tokenizer_name="phucdev/vi-spm-culturax-4g-sample",
-        language_identifier="vi"
+        language_identifier="vi",
+        fasttext_model_dim=300,
+        processes=None
 ):
     transfer_pipeline = FocusTokenizerTransfer(
         source_model_name,
         target_tokenizer_name,
         language_identifier=language_identifier,
         target_training_data_path=target_training_data_path,
-        processes=1,
+        processes=processes,
+        fasttext_model_dim=fasttext_model_dim,
         target_model_path=os.path.join(output_dir, "focus_multilingual_initialization")
     )
     transfer_pipeline.transfer()
@@ -315,6 +333,8 @@ def main():
     bilingual_dictionary = args.bilingual_dictionary
     align_matrix_path = args.align_matrix_path
     aligned_data_path = args.aligned_data_path
+    processes = args.processes
+    fasttext_model_dim = args.fasttext_model_dim
     corpus = args.corpus
     target_training_data_path = args.target_training_data_path
     statistics_file = args.statistics_file
@@ -387,7 +407,8 @@ def main():
         with measure_time() as timer:
             transfer_statistics["FOCUS_monolingual"] = focus_monolingual_embedding_initialization(
                 output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name,
-                target_training_data_path=target_training_data_path
+                target_training_data_path=target_training_data_path, processes=processes,
+                fasttext_model_dim=fasttext_model_dim
             )
         elapsed_time = timer()
         transfer_statistics["FOCUS_monolingual"]["elapsed_time"] = elapsed_time
@@ -415,7 +436,8 @@ def main():
         with measure_time() as timer:
             transfer_statistics["FOCUS_multilingual"] = focus_multilingual_embedding_initialization(
                 output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name,
-                language_identifier=target_language_identifier, target_training_data_path=target_training_data_path
+                language_identifier=target_language_identifier, target_training_data_path=target_training_data_path,
+                fasttext_model_dim=fasttext_model_dim, processes=processes
             )
         elapsed_time = timer()
         transfer_statistics["FOCUS_multilingual"]["elapsed_time"] = elapsed_time

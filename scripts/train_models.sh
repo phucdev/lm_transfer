@@ -8,18 +8,18 @@ accelerate launch lm_transfer/training/run_language_modeling.py \
   --model_name_or_path=models/random_initialization \
   --num_train_epochs=1 \
   --preprocessing_num_workers=4 \
-  --per_device_train_batch_size=16 \
-  --per_device_eval_batch_size=16 \
+  --per_device_train_batch_size=32 \
+  --per_device_eval_batch_size=32 \
   --language_modeling_objective=mlm \
   --output_dir=results/roberta-random_init \
   --eval_steps=300 \
   --eval_iters=50 \
   --train_file data/culturax_vi/train.json \
   --validation_file data/culturax_vi/valid.json \
-  --learning_rate 6e-4 \
-  --adam_epsilon 1e-6 \
+  --learning_rate 5e-5 \
+  --adam_epsilon 1e-8 \
   --beta1 0.9 \
-  --beta2 0.98 \
+  --beta2 0.999 \
   --save_preprocessed_dataset_path data/culturax_vi/preprocessed_bpe \
   --lr_scheduler_type constant_with_warmup \
   --num_warmup_steps 2613 \

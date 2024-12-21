@@ -31,9 +31,7 @@ from itertools import chain
 from datasets import load_dataset
 
 from transformers import (
-    CONFIG_MAPPING,
     MODEL_MAPPING,
-    AutoConfig,
     AutoTokenizer,
     set_seed
 )
@@ -267,19 +265,6 @@ def main():
     #
     # In distributed training, the .from_pretrained methods guarantee that only one local process can concurrently
     # download model & vocab.
-    if args.config_name:
-        config = AutoConfig.from_pretrained(
-            args.config_name,
-            trust_remote_code=args.trust_remote_code,
-        )
-    elif args.model_name_or_path:
-        config = AutoConfig.from_pretrained(
-            args.model_name_or_path,
-            trust_remote_code=args.trust_remote_code,
-        )
-    else:
-        config = CONFIG_MAPPING[args.model_type]()
-        logger.warning("You are instantiating a new config instance from scratch.")
 
     if args.tokenizer_name:
         tokenizer = AutoTokenizer.from_pretrained(
@@ -363,13 +348,6 @@ def main():
         block_size = 1024
         if args.block_size is None:
             block_size = tokenizer.model_max_length
-            if hasattr(config, "max_position_embeddings") and block_size > config.max_position_embeddings:
-                logger.warning(
-                    f"The tokenizer picked seems to have a very large `model_max_length` ({tokenizer.model_max_length})."
-                    f"Using block_size={min(1024, config.max_position_embeddings)} instead. You can change that "
-                    f"default value by passing --block_size xxx."
-                )
-                block_size = min(1024, config.max_position_embeddings)
         else:
             if args.block_size > tokenizer.model_max_length:
                 logger.warning(

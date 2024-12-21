@@ -479,6 +479,23 @@ def main():
         )
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token_id = tokenizer.eos_token_id
+    block_size = 1024
+    if args.block_size is None:
+        block_size = tokenizer.model_max_length
+        if hasattr(config, "max_position_embeddings") and block_size > config.max_position_embeddings:
+            logger.warning(
+                f"The tokenizer picked seems to have a very large `model_max_length` ({tokenizer.model_max_length})."
+                f"Using block_size={min(1024, config.max_position_embeddings)} instead. You can change that "
+                f"default value by passing --block_size xxx."
+            )
+            block_size = min(1024, config.max_position_embeddings)
+    else:
+        if args.block_size > tokenizer.model_max_length:
+            logger.warning(
+                f"The block_size passed ({args.block_size}) is larger than the maximum length for the model "
+                f"({tokenizer.model_max_length}). Using block_size={tokenizer.model_max_length}."
+            )
+        block_size = min(args.block_size, tokenizer.model_max_length)
 
     # Get the datasets: you can either provide your own CSV/JSON/TXT training and evaluation files (see below)
     # or just provide the name of one of the public datasets available on the hub at https://huggingface.co/datasets/
@@ -543,24 +560,6 @@ def main():
         # First we tokenize all the texts.
         column_names = raw_datasets["train"].column_names
         text_column_name = "text" if "text" in column_names else column_names[0]
-
-        block_size = 1024
-        if args.block_size is None:
-            block_size = tokenizer.model_max_length
-            if hasattr(config, "max_position_embeddings") and block_size > config.max_position_embeddings:
-                logger.warning(
-                    f"The tokenizer picked seems to have a very large `model_max_length` ({tokenizer.model_max_length})."
-                    f"Using block_size={min(1024, config.max_position_embeddings)} instead. You can change that "
-                    f"default value by passing --block_size xxx."
-                )
-                block_size = min(1024, config.max_position_embeddings)
-        else:
-            if args.block_size > tokenizer.model_max_length:
-                logger.warning(
-                    f"The block_size passed ({args.block_size}) is larger than the maximum length for the model "
-                    f"({tokenizer.model_max_length}). Using block_size={tokenizer.model_max_length}."
-                )
-            block_size = min(args.block_size, tokenizer.model_max_length)
 
         if args.line_by_line:
             # When using line_by_line, we just tokenize each nonempty line.
@@ -997,7 +996,7 @@ def main():
                     token=args.hub_token,
                 )
             with open(os.path.join(args.output_dir, "all_results.json"), "w") as f:
-                json.dump({"perplexity": perplexity}, f)
+                f.write(json.dumps({"perplexity": perplexity}))
 
 
 if __name__ == "__main__":

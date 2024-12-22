@@ -965,7 +965,7 @@ def main():
         )
         logger.info(f"End of training: perplexity: {perplexity} loss: {eval_loss}")
         if args.with_tracking:
-            consumed_train_tokens = args.num_train_epochs * len(train_dataloader) * total_batch_size * block_size
+            consumed_train_tokens = completed_steps * total_batch_size * block_size
             accelerator.log(
                 {
                     "test/perplexity": perplexity,

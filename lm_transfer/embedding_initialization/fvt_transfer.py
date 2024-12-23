@@ -19,6 +19,8 @@ class FVTTokenizerTransfer(TokenizerTransfer):
             source_model_name_or_path: str,
             target_tokenizer_name_or_path: str,
             target_model_path: str = None,
+            seed: int = 42,
+            device="cpu",
             **kwargs
     ):
         """
@@ -42,9 +44,13 @@ class FVTTokenizerTransfer(TokenizerTransfer):
         :param source_model_name_or_path:
         :param target_tokenizer_name_or_path:
         :param target_model_path:
+        :param seed:
+        :param device:
         """
         super().__init__(source_model_name_or_path, target_tokenizer_name_or_path, target_model_path, **kwargs)
-
+        self.seed = seed
+        self.device = device
+        self.gen = torch.Generator(device=self.device).manual_seed(self.seed)
         self.transfer_method = "fvt"
 
     @override
@@ -89,7 +95,10 @@ class FVTTokenizerTransfer(TokenizerTransfer):
                 self.overlap_based_initialized_tokens += 1
             else:
                 # if not, tokenize the new token using the old vocabulary
-                new_token = re.sub('^(##|Ġ|▁)', '', new_token)
+                tmp_new_token = new_token
+                new_token = re.sub("^(##|Ġ|▁)", "", new_token)
+                if new_token == "":
+                    new_token = tmp_new_token   # reverse substitution if the token is empty
                 # we modified the call to the gen_tokenizer in order to directly get the input_ids
                 if new_token in ngram_vocab:
                     token_partition = gen_tokenizer(
@@ -100,22 +109,30 @@ class FVTTokenizerTransfer(TokenizerTransfer):
                         new_token, add_special_tokens=False, return_tensors='pt'
                     )["input_ids"][0]
                 tokens_map[new_index] = token_partition
+                if len(token_partition) < 1:
+                    logger.warning(f"Token {tmp_new_token} could not be tokenized with source vocabulary.")
 
         # embeddings_assignment: assigns the embeddings to the new embedding matrix
         # https://github.com/LeonidasY/fast-vocabulary-transfer/blob/9ecbbf2454cff8a27c298e3efc047c29efd32836/fvt/fvt.py#L50
         # originally: gen_model.get_input_embeddings().weight, but we want to use the passed source_embeddings
         # that can either be the input embeddings or the output embeddings (unembedding matrix)
-        gen_matrix = torch.from_numpy(source_embeddings)
-        in_matrix = torch.zeros(len(tokens_map), gen_matrix.shape[1])
+        gen_matrix = torch.from_numpy(source_embeddings).to(self.device)
+        in_matrix = torch.zeros(len(tokens_map), gen_matrix.shape[1], device=self.device)
+
+        emb_mean = gen_matrix.mean(dim=0)
+        emb_std = gen_matrix.std(dim=0)
 
         self.cleverly_initialized_tokens = 0
         for new_index, old_indices in tokens_map.items():
-            # in the original code: old_embedding = torch.mean(gen_matrix[old_indices], axis=0)
-            old_indices = torch.tensor(old_indices, dtype=torch.long)
-            old_embedding = torch.mean(gen_matrix[old_indices], dim=0)
-            in_matrix[new_index] = old_embedding
-            self.cleverly_initialized_tokens += 1
+            if len(old_indices) > 0:
+                # in the original code: old_embedding = torch.mean(gen_matrix[old_indices], axis=0)
+                old_indices = torch.tensor(old_indices, dtype=torch.long)
+                old_embedding = torch.mean(gen_matrix[old_indices], dim=0)
+                in_matrix[new_index] = old_embedding
+                self.cleverly_initialized_tokens += 1
+            else:
+                in_matrix[new_index] = torch.normal(emb_mean, emb_std, generator=self.gen)
 
         target_embeddings = in_matrix.detach().cpu().numpy()
-        logger.info(f"Initialized {self.cleverly_initialized_tokens}({len(self.target_tokens)} target embeddings using FVT method.")
+        logger.info(f"Initialized {self.cleverly_initialized_tokens}/{len(self.target_tokens)} target embeddings using FVT method.")
         return target_embeddings

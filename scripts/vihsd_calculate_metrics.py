@@ -33,7 +33,9 @@ def main():
         model_path = os.path.join(task_path, model)
         for run in os.listdir(model_path):
             run_path = os.path.join(model_path, run)
-            predictions_path = os.path.join(run_path, "predict_results.txt")
+            predictions_path = os.path.join(run_path, "predictions.txt")
+            if not os.path.exists(predictions_path):
+                predictions_path = os.path.join(run_path, "predict_results.txt")
             predictions = pd.read_csv(predictions_path, delimiter="\t")
             predicted_labels = list(predictions["prediction"])
             class_report = classification_report(gold_labels, predicted_labels, output_dict=True)
@@ -49,7 +51,7 @@ def main():
                 results["test_weighted_f1"] = weighted_f1
             with open(results_file, mode="w") as f:
                 try:
-                    json.dump(results, f, indent=2, cls=NpEncoder)
+                    f.write(json.dumps(results, indent=2, cls=NpEncoder))
                 except Exception as e:
                     print("Error while saving the results:", e)
 

@@ -144,12 +144,12 @@ class RamenTokenizerTransfer(TokenizerTransfer):
             <tokenized source language text> ||| <tokenized target language text>
         """
         buffer = []
-        en_input_ids_batch = self.source_tokenizer.batch_encode_plus(source_batch, add_special_tokens=False)["input_ids"]
-        vi_input_ids_batch = self.target_tokenizer.batch_encode_plus(target_batch, add_special_tokens=False)["input_ids"]
-        for en_input_ids, vi_input_ids in zip(en_input_ids_batch, vi_input_ids_batch):
-            en_tokenized = " ".join(self.source_tokenizer.convert_ids_to_tokens(en_input_ids))
-            vi_tokenized = " ".join(self.target_tokenizer.convert_ids_to_tokens(vi_input_ids))
-            buffer.append(f'{en_tokenized} ||| {vi_tokenized}\n')
+        src_input_ids_batch = self.source_tokenizer.batch_encode_plus(source_batch, add_special_tokens=False)["input_ids"]
+        tgt_input_ids_batch = self.target_tokenizer.batch_encode_plus(target_batch, add_special_tokens=False)["input_ids"]
+        for src_input_ids, tgt_input_ids in zip(src_input_ids_batch, tgt_input_ids_batch):
+            src_tokenized = " ".join(self.source_tokenizer.convert_ids_to_tokens(src_input_ids))
+            tgt_tokenized = " ".join(self.target_tokenizer.convert_ids_to_tokens(tgt_input_ids))
+            buffer.append(f'{src_tokenized} ||| {tgt_tokenized}\n')
         return buffer
 
     def prepare_data_for_alignment(self, source_file_path, target_file_path, output_path, batch_size=10000):
@@ -172,20 +172,20 @@ class RamenTokenizerTransfer(TokenizerTransfer):
                   open(output_path, "w") as writer):
                 source_batch = []
                 target_batch = []
-                for idx, (en_line, vi_line) in tqdm(enumerate(zip(source_reader, target_reader)), desc="Tokenizing parallel data"):
-                    source_batch.append(en_line.strip())
-                    target_batch.append(vi_line.strip())
+                for idx, (src_line, tgt_line) in tqdm(enumerate(zip(source_reader, target_reader)), desc="Tokenizing parallel data"):
+                    source_batch.append(src_line.strip())
+                    target_batch.append(tgt_line.strip())
                     if len(source_batch) < batch_size:
                         continue
                     buffer = []
-                    en_input_ids_batch = self.source_tokenizer.batch_encode_plus(
+                    sre_input_ids_batch = self.source_tokenizer.batch_encode_plus(
                         source_batch, add_special_tokens=False)["input_ids"]
-                    vi_input_ids_batch = self.target_tokenizer.batch_encode_plus(
+                    tgt_input_ids_batch = self.target_tokenizer.batch_encode_plus(
                         target_batch, add_special_tokens=False)["input_ids"]
-                    for en_input_ids, vi_input_ids in zip(en_input_ids_batch, vi_input_ids_batch):
-                        en_tokenized = " ".join(self.source_tokenizer.convert_ids_to_tokens(en_input_ids))
-                        vi_tokenized = " ".join(self.target_tokenizer.convert_ids_to_tokens(vi_input_ids))
-                        buffer.append(f'{en_tokenized} ||| {vi_tokenized}\n')
+                    for src_input_ids, tgt_input_ids in zip(sre_input_ids_batch, tgt_input_ids_batch):
+                        src_tokenized = " ".join(self.source_tokenizer.convert_ids_to_tokens(src_input_ids))
+                        tgt_tokenized = " ".join(self.target_tokenizer.convert_ids_to_tokens(tgt_input_ids))
+                        buffer.append(f'{src_tokenized} ||| {tgt_tokenized}\n')
                     writer.writelines(buffer)
                     source_batch = []
                     target_batch = []

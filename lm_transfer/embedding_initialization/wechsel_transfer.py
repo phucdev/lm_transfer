@@ -714,8 +714,8 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
 
                     emb = np.zeros(target_matrix.shape[1])
 
-                    for i, close_token in enumerate(tokens):
-                        emb += source_matrix[source_vocab[close_token]] * weights[i]
+                    for j, close_token in enumerate(tokens):
+                        emb += source_matrix[source_vocab[close_token]] * weights[j]
 
                     target_matrix[token_id] = emb
 

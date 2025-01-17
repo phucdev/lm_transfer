@@ -312,7 +312,7 @@ def parse_args():
     parser.add_argument(
         "--language_modeling_objective",
         type=str,
-        default="clm",
+        default="mlm",
         choices=["clm", "mlm"],
         help="Language modeling objective for the model and training."
     )

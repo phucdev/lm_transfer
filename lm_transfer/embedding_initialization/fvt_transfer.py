@@ -1,8 +1,15 @@
 import logging
 import re
 import torch
+import math
 
+from collections import Counter
+from datasets import load_dataset
 from overrides import override
+from typing import Optional
+
+from tqdm import tqdm
+
 from lm_transfer.embedding_initialization.tokenizer_transfer import TokenizerTransfer
 
 logging.basicConfig(
@@ -21,6 +28,12 @@ class FVTTokenizerTransfer(TokenizerTransfer):
             target_model_path: str = None,
             seed: int = 42,
             device="cpu",
+            aggregation_method="mean",
+            target_training_data_path: Optional[str] = None,
+            num_proc: Optional[int] = None,
+            log_scale: bool = False,
+            rescale: bool = False,
+            minimize_punctuation_weight: bool = False,
             **kwargs
     ):
         """
@@ -46,10 +59,22 @@ class FVTTokenizerTransfer(TokenizerTransfer):
         :param target_model_path:
         :param seed:
         :param device:
+        :param aggregation_method:
+        :param target_training_data_path:
+        :param num_proc:
+        :param log_scale:
+        :param rescale:
+        :param minimize_punctuation_weight:
         """
         super().__init__(source_model_name_or_path, target_tokenizer_name_or_path, target_model_path, **kwargs)
         self.seed = seed
         self.device = device
+        self.aggregation_method = aggregation_method
+        self.target_training_data_path = target_training_data_path
+        self.num_proc = num_proc
+        self.log_scale = log_scale
+        self.rescale = rescale
+        self.minimize_punctuation_weight = minimize_punctuation_weight
         self.gen = torch.Generator(device=self.device).manual_seed(self.seed)
         self.transfer_method = "fvt"
 
@@ -60,8 +85,122 @@ class FVTTokenizerTransfer(TokenizerTransfer):
         :return: The dictionary containing the parameters of the FVT transfer method.
         """
         parameters = super().save_parameters_to_dict()
+        parameters["seed"] = self.seed
+        parameters["aggregation_method"] = self.aggregation_method
+        parameters["target_training_data_path"] = self.target_training_data_path
+        parameters["num_proc"] = self.num_proc
+        parameters["log_scale"] = self.log_scale
+        parameters["rescale"] = self.rescale
+        parameters["minimize_punctuation_weight"] = self.minimize_punctuation_weight
         parameters["transfer_method"] = self.transfer_method
         return parameters
+
+    def get_token_frequencies(self, tokenizer):
+        train_data = load_dataset("json", data_files={"train": self.target_training_data_path}, split="train")
+
+        def tokenize_function(example):
+            """
+            Tokenize each text in the batch using old_tokenizer.tokenize()
+            and store the list of tokens in a new field called 'tokens'.
+            """
+            all_tokens = []
+            for text in example["text"]:
+                # old_tokenizer.tokenize() returns a list of subword strings
+                tokens = tokenizer.tokenize(text)
+                all_tokens.append(tokens)
+            return {"tokens": all_tokens}
+
+        tokenized = train_data.map(tokenize_function, batched=True, num_proc=self.num_proc).remove_columns("text")
+        freq_counter = Counter()
+
+        # We iterate over the dataset and extend a Python list with all tokens
+        for example in tqdm(tokenized, desc="Counting token frequencies"):
+            # tokens_list is a list of subwords for one example
+            tokens_list = example["tokens"]
+            freq_counter.update(tokens_list)
+
+        return freq_counter
+
+    def compute_weighted_mean(
+        self,
+        old_indices,
+        gen_matrix,
+        freq_counter=None,
+        punc_weight_factor=0.01,
+        avg_source_norm=None
+    ):
+        """Compute weights for the weighted mean of the embeddings.
+        old_indices: list of old/source token indices of the decomposed new token
+        gen_matrix: source embedding matrix
+        freq_counter: dictionary mapping old_subword -> frequency
+        punc_weight_factor: multiply weight for punctuation tokens with this factor
+        avg_source_norm: average L2 norm of the source embeddings
+        """
+        if len(old_indices) == 1:
+            # Direct copy for overlapping tokens
+            old_indices = torch.tensor(old_indices, dtype=torch.long)
+            old_embedding = gen_matrix[old_indices]
+            return old_embedding
+        else:
+            if freq_counter is not None and self.aggregation_method == "freq_weighted":
+                # Compute weights
+                old_tokens = [self.source_tokens[i] for i in old_indices]
+                freqs = []
+                for s in old_tokens:
+                    if not s.isalpha() and self.minimize_punctuation_weight:
+                        # Completely reduce the weight of punctuation tokens
+                        freqs.append(1)
+                    else:
+                        freqs.append(freq_counter.get(s, 0))
+                total = sum(freqs)
+                if total == 0:
+                    # fallback to unweighted mean
+                    old_indices = torch.tensor(old_indices, dtype=torch.long)
+                    old_embedding = torch.mean(gen_matrix[old_indices], dim=0)
+                else:
+                    if self.log_scale:
+                        # To handle huge disparity between frequencies we can use log scale
+                        weights = [math.log(f + 1) for f in freqs]
+                    else:
+                        weights = [max(f, 1) for f in freqs]
+                    # Normalize weights
+                    weights = [w / sum(weights) for w in weights]
+
+                    # Weighted sum
+                    old_embedding = torch.zeros(gen_matrix.size(1))
+                    for w, s in zip(weights, old_indices):
+                        if s is not None:
+                            old_embedding += w * gen_matrix[s]
+            elif self.aggregation_method == "subword_length_weighted":
+                # Use the relative length of the subwords as weights
+                subword_lengths = [len(self.source_tokens[i]) for i in old_indices]
+                if self.log_scale:
+                    subword_lengths = [math.log(l + 1) for l in subword_lengths]
+                weights = [w / sum(subword_lengths) for w in subword_lengths]
+                old_embedding = torch.zeros(gen_matrix.size(1))
+                for w, s in zip(weights, old_indices):
+                    if s is not None:
+                        old_embedding += w * gen_matrix[s]
+            else:
+                # Original FVT approach simply calculates the mean of the embeddings
+                # in the original code: old_embedding = torch.mean(gen_matrix[old_indices], axis=0)
+                old_indices = torch.tensor(old_indices, dtype=torch.long)
+                if self.minimize_punctuation_weight:
+                    # Use punc_weight for punctuation tokens when calculating the mean
+                    avg_weight = 1 / len(old_indices)
+                    weights = [punc_weight_factor * avg_weight if not self.source_tokens[i].isalpha() else avg_weight for i in old_indices]
+                    weights = [w / sum(weights) for w in weights]
+                    old_embedding = torch.zeros(gen_matrix.size(1))
+                    for w, s in zip(weights, old_indices):
+                        if s is not None:
+                            old_embedding += w * gen_matrix[s]
+                else:
+                    old_embedding = torch.mean(gen_matrix[old_indices], dim=0)
+            # In case we average multiple source embeddings, we can optionally rescale the resulting embedding to match
+            # the average L2 norm of the source embeddings
+            if len(old_indices) > 1 and self.rescale and avg_source_norm is not None:
+                old_embedding *= avg_source_norm / old_embedding.norm()
+            return old_embedding
 
     @override
     def initialize_embeddings(self, source_embeddings, **kwargs):
@@ -84,6 +223,18 @@ class FVTTokenizerTransfer(TokenizerTransfer):
         gen_vocab = gen_tokenizer.get_vocab()
         in_vocab = in_tokenizer.get_vocab()
         ngram_vocab = in_tokenizer.ngram_vocab if hasattr(in_tokenizer, "ngram_vocab") else {}
+
+        if self.aggregation_method == "freq_weighted":
+            freq_counter = self.get_token_frequencies(in_tokenizer)
+            logger.info(f"Token frequencies collected for {len(freq_counter)} tokens.")
+        else:
+            freq_counter = {}
+
+        if self.rescale:
+            avg_source_norm = self.source_embeddings.norm(dim=1).mean()  # average L2 norm
+            logger.info("Rescaling target embeddings to match source embeddings' average L2 norm.")
+        else:
+            avg_source_norm = None
 
         self.overlap_based_initialized_tokens = 0
         tokens_map = {}
@@ -125,12 +276,16 @@ class FVTTokenizerTransfer(TokenizerTransfer):
         self.cleverly_initialized_tokens = 0
         for new_index, old_indices in tokens_map.items():
             if len(old_indices) > 0:
-                # in the original code: old_embedding = torch.mean(gen_matrix[old_indices], axis=0)
-                old_indices = torch.tensor(old_indices, dtype=torch.long)
-                old_embedding = torch.mean(gen_matrix[old_indices], dim=0)
+                old_embedding = self.compute_weighted_mean(
+                    old_indices,
+                    gen_matrix,
+                    freq_counter,
+                    avg_source_norm=avg_source_norm
+                )
                 in_matrix[new_index] = old_embedding
                 self.cleverly_initialized_tokens += 1
             else:
+                # Random initialization for tokens that could not be found in the source vocabulary
                 in_matrix[new_index] = torch.normal(emb_mean, emb_std, generator=self.gen)
 
         target_embeddings = in_matrix.detach().cpu().numpy()

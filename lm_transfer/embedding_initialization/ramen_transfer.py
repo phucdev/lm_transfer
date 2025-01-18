@@ -77,6 +77,7 @@ class RamenTokenizerTransfer(TokenizerTransfer):
         self.target_language_identifier = target_language_identifier
         self.corpus = corpus
         self.translation_probabilities = None
+
         self.seed = seed
 
     @override
@@ -152,7 +153,13 @@ class RamenTokenizerTransfer(TokenizerTransfer):
             buffer.append(f'{src_tokenized} ||| {tgt_tokenized}\n')
         return buffer
 
-    def prepare_data_for_alignment(self, source_file_path, target_file_path, output_path, batch_size=10000):
+    def prepare_data_for_alignment(
+            self,
+            source_file_path,
+            target_file_path,
+            output_path,
+            batch_size=10000
+    ):
         """
         Method to prepare data for alignment by tokenizing the text and its translation with the respective tokenizer
         and writing it to a file in the format <tokenized source language text> ||| <tokenized target language text>
@@ -173,6 +180,9 @@ class RamenTokenizerTransfer(TokenizerTransfer):
                 source_batch = []
                 target_batch = []
                 for idx, (src_line, tgt_line) in tqdm(enumerate(zip(source_reader, target_reader)), desc="Tokenizing parallel data"):
+                    if source_file_path.endswith(".json") and target_file_path.endswith(".json"):
+                        src_line = json.loads(src_line)["text"]
+                        tgt_line = json.loads(tgt_line)["text"]
                     source_batch.append(src_line.strip())
                     target_batch.append(tgt_line.strip())
                     if len(source_batch) < batch_size:
@@ -313,22 +323,34 @@ class RamenTokenizerTransfer(TokenizerTransfer):
             logger.info("Translation probabilities already computed. Skipping alignment and translation probability computation.")
         else:
             Path(self.aligned_data_path).mkdir(parents=True, exist_ok=True)
-            logger.info("(1/6) Downloading parallel data...")
-            self.get_parallel_data(
-                self.source_language_identifier,
-                self.target_language_identifier,
-                self.aligned_data_path,
-                self.corpus
-            )
-            language_pair = f"{self.source_language_identifier}-{self.target_language_identifier}"
-            base_path = f"{self.aligned_data_path}/{language_pair}/{self.corpus}.{language_pair}"
-            logger.info("(2/6) Tokenizing parallel data for alignment...")
-            tokenized_parallel_data_path = f"{self.aligned_data_path}/tokenized_parallel_data.{language_pair}"
-            self.prepare_data_for_alignment(
-                f"{base_path}.{self.source_language_identifier}",
-                f"{base_path}.{self.target_language_identifier}",
-                tokenized_parallel_data_path
-            )
+            if self.source_language_identifier == self.target_language_identifier and Path(self.corpus).exists():
+                # Instead of using parallel data we tokenize the same data with both tokenizers
+                logger.info("(1/6) Preparing data...")
+                language_pair = f"{self.source_language_identifier}-{self.target_language_identifier}"
+                logger.info("(2/6) Tokenizing parallel data for alignment...")
+                tokenized_parallel_data_path = f"{self.aligned_data_path}/tokenized_parallel_data.{language_pair}"
+                self.prepare_data_for_alignment(
+                    self.corpus,
+                    self.corpus,
+                    tokenized_parallel_data_path
+                )
+            else:
+                logger.info("(1/6) Downloading parallel data...")
+                self.get_parallel_data(
+                    self.source_language_identifier,
+                    self.target_language_identifier,
+                    self.aligned_data_path,
+                    self.corpus
+                )
+                language_pair = f"{self.source_language_identifier}-{self.target_language_identifier}"
+                base_path = f"{self.aligned_data_path}/{language_pair}/{self.corpus}.{language_pair}"
+                logger.info("(2/6) Tokenizing parallel data for alignment...")
+                tokenized_parallel_data_path = f"{self.aligned_data_path}/tokenized_parallel_data.{language_pair}"
+                self.prepare_data_for_alignment(
+                    f"{base_path}.{self.source_language_identifier}",
+                    f"{base_path}.{self.target_language_identifier}",
+                    tokenized_parallel_data_path
+                )
             logger.info("(3/6) Computing alignment...")
             symmetric_alignment_path = f"{self.aligned_data_path}/align.{language_pair}"
             self.get_alignment(tokenized_parallel_data_path, self.aligned_data_path)

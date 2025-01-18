@@ -198,5 +198,5 @@ class CLPTokenizerTransfer(TokenizerTransfer):
             target_model.save_pretrained(self.target_model_path)
             with open(Path(self.target_model_path) / "transfer_information.json", "w") as f:
                 information_dict = self.save_parameters_to_dict()
-                json.dump(information_dict, f, indent=2)
+                f.write(json.dumps(information_dict, indent=2))
         return target_model

@@ -443,5 +443,5 @@ class RamenTokenizerTransfer(TokenizerTransfer):
             transfer_info_path = Path(self.target_model_path) / "transfer_information.json"
             with open(transfer_info_path, "w") as f:
                 information_dict = self.save_parameters_to_dict()
-                json.dump(information_dict, f, indent=2)
+                f.write(json.dumps(information_dict, indent=2))
         return target_model

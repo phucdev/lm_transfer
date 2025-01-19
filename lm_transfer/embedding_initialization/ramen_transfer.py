@@ -33,6 +33,7 @@ class RamenTokenizerTransfer(TokenizerTransfer):
             target_model_path: str = None,
             corpus: str = "OpenSubtitles",
             seed: int = 42,
+            num_samples: int = None,
             **kwargs
     ):
         """
@@ -70,12 +71,14 @@ class RamenTokenizerTransfer(TokenizerTransfer):
         :param target_model_path:
         :param corpus: Name of the corpus to download parallel data from, e.g. OpenSubtitles or CCMatrix
         :param seed: Random seed for reproducibility
+        :param num_samples: Number of samples to use for calculating the alignment. If None, all samples are used.
         """
         super().__init__(source_model_name_or_path, target_tokenizer_name_or_path, target_model_path, **kwargs)
         self.aligned_data_path = aligned_data_path
         self.source_language_identifier = source_language_identifier
         self.target_language_identifier = target_language_identifier
         self.corpus = corpus
+        self.num_samples = num_samples
         self.translation_probabilities = None
 
         self.seed = seed
@@ -180,6 +183,8 @@ class RamenTokenizerTransfer(TokenizerTransfer):
                 source_batch = []
                 target_batch = []
                 for idx, (src_line, tgt_line) in tqdm(enumerate(zip(source_reader, target_reader)), desc="Tokenizing parallel data"):
+                    if self.num_samples and idx >= self.num_samples:
+                        break
                     if source_file_path.endswith(".json") and target_file_path.endswith(".json"):
                         src_line = json.loads(src_line)["text"]
                         tgt_line = json.loads(tgt_line)["text"]
@@ -187,15 +192,7 @@ class RamenTokenizerTransfer(TokenizerTransfer):
                     target_batch.append(tgt_line.strip())
                     if len(source_batch) < batch_size:
                         continue
-                    buffer = []
-                    sre_input_ids_batch = self.source_tokenizer.batch_encode_plus(
-                        source_batch, add_special_tokens=False)["input_ids"]
-                    tgt_input_ids_batch = self.target_tokenizer.batch_encode_plus(
-                        target_batch, add_special_tokens=False)["input_ids"]
-                    for src_input_ids, tgt_input_ids in zip(sre_input_ids_batch, tgt_input_ids_batch):
-                        src_tokenized = " ".join(self.source_tokenizer.convert_ids_to_tokens(src_input_ids))
-                        tgt_tokenized = " ".join(self.target_tokenizer.convert_ids_to_tokens(tgt_input_ids))
-                        buffer.append(f'{src_tokenized} ||| {tgt_tokenized}\n')
+                    buffer = self.process_batch(source_batch, target_batch)
                     writer.writelines(buffer)
                     source_batch = []
                     target_batch = []

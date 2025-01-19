@@ -115,6 +115,12 @@ def parse_args():
         default=None,
         help="Frequency dictionary path for FVT initialization"
     )
+    parser.add_argument(
+        "--num_samples",
+        type=int,
+        default=None,
+        help="Number of samples to use for RAMEN initialization"
+    )
     args = parser.parse_args()
     # Set some default values for paths
     if args.bilingual_dictionary is None:
@@ -164,7 +170,8 @@ def ramen_embedding_initialization(
         target_language_identifier="vi",
         corpus="OpenSubtitles",
         source_model_name="FacebookAI/roberta-base",
-        target_tokenizer_name="phucdev/vi-bpe-culturax-4g-sample"
+        target_tokenizer_name="phucdev/vi-bpe-culturax-4g-sample",
+        num_samples=None
 ):
     transfer_pipeline = RamenTokenizerTransfer(
         source_model_name,
@@ -173,7 +180,8 @@ def ramen_embedding_initialization(
         source_language_identifier=source_language_identifier,
         target_language_identifier=target_language_identifier,
         corpus=corpus,
-        target_model_path=os.path.join(output_dir, "ramen_initialization")
+        target_model_path=os.path.join(output_dir, "ramen_initialization"),
+        num_samples=num_samples
     )
     transfer_pipeline.transfer()
     return transfer_pipeline.get_transfer_statistics()
@@ -416,6 +424,7 @@ def main():
     corpus = args.corpus
     target_training_data_path = args.target_training_data_path
     freq_dict_path = args.freq_dict_path
+    num_samples = args.num_samples
     statistics_file = args.statistics_file
 
     if os.path.exists(statistics_file):
@@ -440,7 +449,7 @@ def main():
             transfer_statistics["RAMEN"] = ramen_embedding_initialization(
                 output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name,
                 aligned_data_path=aligned_data_path, source_language_identifier=source_language_identifier,
-                target_language_identifier=target_language_identifier, corpus=corpus
+                target_language_identifier=target_language_identifier, corpus=corpus, num_samples=num_samples
             )
         elapsed_time = timer()
         transfer_statistics["RAMEN"]["elapsed_time"] = elapsed_time
@@ -568,7 +577,7 @@ def main():
             transfer_statistics["RAMEN_multilingual"] = ramen_embedding_initialization(
                 output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name,
                 aligned_data_path=aligned_data_path, source_language_identifier=source_language_identifier,
-                target_language_identifier=target_language_identifier, corpus=corpus
+                target_language_identifier=target_language_identifier, corpus=corpus, num_samples=num_samples
             )
         elapsed_time = timer()
         transfer_statistics["RAMEN_multilingual"]["elapsed_time"] = elapsed_time

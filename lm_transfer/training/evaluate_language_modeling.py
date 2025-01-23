@@ -398,9 +398,8 @@ def main():
     # Save results
     if args.output_dir:
         os.makedirs(args.output_dir, exist_ok=True)
-        results = {"eval_loss": eval_loss, "perplexity": perplexity}
         with open(os.path.join(args.output_dir, "eval_results.json"), "w") as f:
-            f.write(json.dumps(results, indent=4))
+            f.write(json.dumps({"perplexity": perplexity}))
 
 
 if __name__ == "__main__":

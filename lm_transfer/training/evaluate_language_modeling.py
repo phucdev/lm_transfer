@@ -68,7 +68,15 @@ def parse_args():
         default=None,
         help="Path to save preprocessed dataset to.",
     )
+    parser.add_argument(
+        "--train_file", type=str, default=None, help="A csv, txt or a json file containing the training data."
+    )
     parser.add_argument("--validation_file", type=str, required=True, help="A file containing the validation data.")
+    parser.add_argument(
+        "--validation_split_percentage",
+        default=5,
+        help="The percentage of the train set used as validation set in case there's no validation split",
+    )
     parser.add_argument(
         "--max_eval_samples",
         type=int,
@@ -79,11 +87,55 @@ def parse_args():
                         help="Batch size for the evaluation dataloader.")
     parser.add_argument("--block_size", type=int, default=512,
                         help="Optional input sequence length after tokenization.")
-    parser.add_argument("--language_modeling_objective", type=str, choices=["clm", "mlm"], default="mlm",
-                        help="Language modeling objective for the model.")
-    parser.add_argument("--eval_iters", type=int, default=None, help="The number of iterations to run evaluation for.")
+    parser.add_argument(
+        "--preprocessing_num_workers",
+        type=int,
+        default=None,
+        help="The number of processes to use for the preprocessing.",
+    )
+    parser.add_argument(
+        "--overwrite_cache", action="store_true", help="Overwrite the cached training and evaluation sets"
+    )
+    parser.add_argument(
+        "--trust_remote_code",
+        type=bool,
+        default=False,
+        help=(
+            "Whether or not to allow for custom models defined on the Hub in their own modeling files. This option "
+            "should only be set to `True` for repositories you trust and in which you have read the code, as it will "
+            "execute code present on the Hub on your local machine."
+        ),
+    )
     parser.add_argument("--output_dir", type=str, default=None, help="Where to store the evaluation results.")
     parser.add_argument("--seed", type=int, default=42, help="A seed for reproducible evaluation.")
+    parser.add_argument(
+        "--low_cpu_mem_usage",
+        action="store_true",
+        help=(
+            "It is an option to create the model as an empty shell, then only materialize its parameters when the pretrained weights are loaded. "
+            "If passed, LLM loading time and RAM consumption will be benefited."
+        ),
+    )
+    # MLM args block
+    parser.add_argument(
+        "--mlm_probability", type=float, default=0.15, help="Ratio of tokens to mask for masked language modeling loss"
+    )
+    parser.add_argument(
+        "--no_keep_linebreaks", action="store_true", help="Do not keep line breaks when using TXT files."
+    )
+    parser.add_argument(
+        "--line_by_line",
+        type=bool,
+        default=False,
+        help="Whether distinct lines of text in the dataset are to be handled as distinct sequences.",
+    )
+    parser.add_argument(
+        "--pad_to_max_length",
+        action="store_true",
+        help="If passed, pad all samples to `max_length`. Otherwise, dynamic padding is used.",
+    )
+    parser.add_argument("--language_modeling_objective", type=str, choices=["clm", "mlm"], default="mlm",
+                        help="Language modeling objective for the model.")
     return parser.parse_args()
 
 
@@ -94,8 +146,6 @@ def validate_model(model, eval_dataloader, accelerator, per_device_eval_batch_si
         eval_dataloader (:obj:`torch.utils.data.DataLoader`): The evaluation dataloader.
         accelerator (:obj:`accelerate.Accelerator`): The distributed training backend.
         per_device_eval_batch_size (:obj:`int`): The batch size per device.
-        eval_iters (:obj:`int`, `optional`): The number of iterations to run evaluation for. Defaults to `None` which
-            means that the whole dataset will be used.
     Returns:
         :obj:`tuple(torch.FloatTensor, float)`: A tuple with the evaluation loss and the perplexity.
     """
@@ -292,20 +342,16 @@ def main():
 
     with accelerator.main_process_first():
         lm_datasets.set_format("torch")
-        if args.max_train_samples is not None:
-            max_train_samples = min(len(lm_datasets["train"]), args.max_train_samples)
-            lm_datasets["train"] = lm_datasets["train"].select(range(max_train_samples))
         if args.max_eval_samples is not None:
             max_eval_samples = min(len(lm_datasets["validation"]), args.max_eval_samples)
             lm_datasets["validation"] = lm_datasets["validation"].select(range(max_eval_samples))
-        train_dataset = lm_datasets["train"]
         eval_dataset = lm_datasets["validation"]
 
     # Conditional for small test subsets
-    if len(train_dataset) > 3:
+    if len(eval_dataset) > 3:
         # Log a few random samples from the training set:
-        for index in random.sample(range(len(train_dataset)), 3):
-            logger.info(f"Sample {index} of the training set: {train_dataset[index]}.")
+        for index in random.sample(range(len(eval_dataset)), 3):
+            logger.info(f"Sample {index} of the training set: {eval_dataset[index]}.")
 
     # Data collator
     if args.language_modeling_objective == "clm":

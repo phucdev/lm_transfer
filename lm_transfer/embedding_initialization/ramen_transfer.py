@@ -363,7 +363,7 @@ class RamenTokenizerTransfer(TokenizerTransfer):
         logger.info("(5/6) Create random fallback matrix and copy embeddings for overlapping special tokens...")
         # For compatibility with the original RAMEN code
         src_embs = torch.from_numpy(source_embeddings)
-        src_bias = torch.from_numpy(self.source_output_bias)
+        src_bias = torch.from_numpy(self.source_output_bias) if self.source_output_bias is not None else None
         src_tokenizer = self.source_tokenizer
         tgt_tokenizer = self.target_tokenizer
         prob = self.translation_probabilities

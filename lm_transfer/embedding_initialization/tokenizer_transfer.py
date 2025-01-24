@@ -62,9 +62,11 @@ class TokenizerTransfer:
         self.target_tokens = self.target_tokenizer.get_vocab()
         self.target_token_to_idx = {t: i for t, i in self.target_tokenizer.get_vocab().items()}
 
-        if "roberta" in source_model_name_or_path:
+        if "roberta" in source_model_name_or_path.lower():
             self.source_output_bias = self.source_model.lm_head.bias.detach().numpy()
-        elif "bert" in source_model_name_or_path:
+        elif "modernbert" in source_model_name_or_path.lower():
+            self.source_output_bias = None
+        elif "bert" in source_model_name_or_path.lower():
             self.source_output_bias = self.source_model.cls.predictions.decoder.bias.detach().numpy()
         else:
             # self.source_output_bias = self.source_model.get_output_embeddings().bias.detach().numpy()

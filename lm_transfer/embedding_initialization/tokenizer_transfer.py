@@ -50,7 +50,7 @@ class TokenizerTransfer:
         self.target_model_path = target_model_path
 
         self.source_tokenizer = AutoTokenizer.from_pretrained(source_model_name_or_path)
-        if "bert" in self.source_model_name_or_path:
+        if "bert" in self.source_model_name_or_path.lower():
             self.source_model = AutoModelForMaskedLM.from_pretrained(source_model_name_or_path)
         else:
             self.source_model = AutoModelForCausalLM.from_pretrained(source_model_name_or_path)

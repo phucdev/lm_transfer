@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Tuple, Dict, Optional
 
 import torch
 import logging
@@ -22,6 +23,8 @@ from lm_transfer.embedding_initialization.special_token_mappings import (
     roberta_special_tokens,
     xlm_roberta_special_tokens
 )
+from lm_transfer.utils.utils import NpEncoder
+
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
@@ -76,6 +79,7 @@ class TokenizerTransfer:
         self.overlap_based_initialized_tokens = 0
         self.cleverly_initialized_tokens = 0
         self.transfer_method = None
+        self.sources: Optional[Dict[Tuple]] = None     # Target Token -> (Source Tokens, Source Token IDs, Weights)
 
     def save_parameters_to_dict(self):
         parameters_dict = {
@@ -97,6 +101,13 @@ class TokenizerTransfer:
             "overlap_based_initialized_tokens": self.overlap_based_initialized_tokens,
             "randomly_initialized_tokens": len(self.target_tokens) - self.cleverly_initialized_tokens
         }
+
+    def get_sources_as_str(self):
+        """
+        Method that returns the sources (Target Token -> Source Tokens, Source Token IDs, Weights) as a string that can
+        be written to a file.
+        """
+        return json.dumps(self.sources, cls=NpEncoder)
 
     def initialize_embeddings(self, source_embeddings, **kwargs):
         """
@@ -148,7 +159,6 @@ class TokenizerTransfer:
 
         :return: A new in_domain model
         """
-
         target_embeddings = self.initialize_embeddings(source_embeddings=self.source_embeddings, **kwargs)
 
         target_model = self.source_model

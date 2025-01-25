@@ -829,5 +829,7 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
         else:
             self.cleverly_initialized_tokens += self.overlap_based_initialized_tokens
 
+        self.sources = sources
+
         logger.info(f"Initialized {self.cleverly_initialized_tokens}/{len(self.target_tokens)} tokens using WECHSEL method.")
         return target_embeddings

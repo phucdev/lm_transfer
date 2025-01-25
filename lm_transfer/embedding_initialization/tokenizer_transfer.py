@@ -109,6 +109,38 @@ class TokenizerTransfer:
         """
         raise NotImplementedError
 
+    @staticmethod
+    def align_config_special_tokens(tokenizer, config):
+        """
+        Copy special token IDs from tokenizer into model.config if they exist.
+        """
+        # Potential special tokens that might exist across various architectures
+        special_token_attrs = [
+            "bos_token_id",
+            "eos_token_id",
+            "sep_token_id",
+            "pad_token_id",
+            "cls_token_id",
+            "mask_token_id",
+        ]
+
+        # For seq2seq models (like T5, Bart) that have a decoder_start_token_id
+        # you might want to align it with bos_token_id (or another token),
+        # depending on your setup:
+        if hasattr(config, "decoder_start_token_id") and tokenizer.bos_token_id is not None:
+            special_token_attrs.append("decoder_start_token_id")
+
+        # Copy over each special token ID if it's defined in the tokenizer
+        # and if the model config has that attribute
+        for attr in special_token_attrs:
+            if hasattr(config, attr):
+                if hasattr(tokenizer, attr) and getattr(tokenizer, attr) is not None:
+                    token_id = getattr(tokenizer, attr)
+                else:
+                    token_id = None
+                setattr(config, attr, token_id)
+        return config
+
     def transfer(self, **kwargs):
         """
         Method that creates a new LM model with transferred embeddings.
@@ -134,10 +166,11 @@ class TokenizerTransfer:
 
         if self.target_model_path:
             self.target_tokenizer.save_pretrained(self.target_model_path)
+            target_model.config = self.align_config_special_tokens(self.target_tokenizer, target_model.config)
             target_model.save_pretrained(self.target_model_path)
             with open(Path(self.target_model_path) / "transfer_information.json", "w") as f:
                 information_dict = self.save_parameters_to_dict()
-                json.dump(information_dict, f, indent=2)
+                f.write(json.dumps(information_dict, indent=2))
         return target_model
 
 

@@ -387,7 +387,7 @@ def main():
     if args.torch_dtype != "auto":
         model_kwargs["torch_dtype"] = args.torch_dtype
     if args.use_flash_attention_2:
-        model_kwargs["attn_implementation "] = "flash_attention_2"
+        model_kwargs["attn_implementation"] = "flash_attention_2"
     if args.language_modeling_objective == "clm":
         if args.model_name_or_path:
             model = AutoModelForCausalLM.from_pretrained(**model_kwargs)

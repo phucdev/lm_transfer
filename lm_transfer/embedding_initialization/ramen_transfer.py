@@ -458,6 +458,7 @@ class RamenTokenizerTransfer(TokenizerTransfer):
 
         if self.target_model_path:
             self.target_tokenizer.save_pretrained(self.target_model_path)
+            target_model.config = self.align_config_special_tokens(self.target_tokenizer, target_model.config)
             target_model.save_pretrained(self.target_model_path)
             transfer_info_path = Path(self.target_model_path) / "transfer_information.json"
             with open(transfer_info_path, "w") as f:

@@ -224,7 +224,7 @@ def get_overlapping_tokens(
     canonical_source_vocab = canonicalize_vocab(source_vocab, source_tokenizer, "source")
     canonical_target_vocab = canonicalize_vocab(target_vocab, target_tokenizer, "target")
 
-    overlap: dict[str, OverlappingToken] = {}
+    overlap: dict[str, OverlappingToken] = {}   # target token -> OverlappingToken
     additional_tokens: dict[str, NewToken] = {}
     exact_src_vocab = construct_vocab_view(canonical_source_vocab, "canonical_form")
     fuzzy_src_vocab = construct_vocab_view(canonical_source_vocab, "fuzzy_form")

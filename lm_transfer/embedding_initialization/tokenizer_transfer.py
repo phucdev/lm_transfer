@@ -300,6 +300,7 @@ class OverlapTokenizerTransfer(RandomInitializationTokenizerTransfer):
             fuzzy_match_all=self.fuzzy_match_all
         )
         # Sort to ensure same order every time (especially important when executing on multiple ranks)
+        # Target token -> source token(s)
         overlapping_tokens = sorted(overlapping_tokens.items(), key=lambda x: x[1].target.id)
         missing_tokens = sorted(missing_tokens.items(), key=lambda x: x[1].target.id)
         logger.debug(f"Found {len(overlapping_tokens)} overlapping tokens.")

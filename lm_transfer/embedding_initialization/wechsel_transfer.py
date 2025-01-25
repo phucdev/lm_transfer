@@ -657,7 +657,7 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
 
             best = sorted(
                 [
-                    (token, similarities[idx])
+                    (token, idx, similarities[idx])
                     for token, idx in zip(best_tokens, best_indices)
                 ],
                 key=lambda x: -x[1],
@@ -703,11 +703,12 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
                 closest = get_n_closest(token_id, similarities[token_id - start], neighbors)
 
                 if closest is not None:
-                    tokens, sims = zip(*closest)
+                    tokens, token_indices, sims = zip(*closest)
                     weights = softmax(np.array(sims) / temperature, 0)
 
                     sources[target_tokenizer.convert_ids_to_tokens(token_id)] = (
                         tokens,
+                        token_indices,
                         weights,
                         sims,
                     )
@@ -818,6 +819,12 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
                     self.overlap_based_initialized_tokens += 1
                     if token in not_found:
                         not_found.remove(token)
+                    sources[token] = (
+                        [overlapping_token_info.source[0].native_form],
+                        [overlapping_token_info.source[0].id],
+                        [1.0],  # weight
+                        [1.0]   # similarity
+                    )
             self.cleverly_initialized_tokens = len(self.target_tokens) - len(not_found)
         else:
             self.cleverly_initialized_tokens += self.overlap_based_initialized_tokens

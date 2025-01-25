@@ -1,4 +1,4 @@
-accelerate~=0.30.1
+accelerate~=1.3.0
 datasets~=3.2.0
 entmax~=1.3
 evaluate~=0.4.3
@@ -20,9 +20,9 @@ rich~=13.7.1
 scikit-learn~=1.4.2
 scipy~=1.12.0
 seqeval~=1.2.2
-tokenizers~=0.19.1
+tokenizers~=0.21.0
 torch~=2.2.2
 tqdm~=4.66.5
-transformers~=4.44.2
+transformers~=4.48.1
 wandb~=0.17.7
 zstandard~=0.22.0

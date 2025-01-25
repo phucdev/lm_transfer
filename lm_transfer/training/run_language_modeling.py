@@ -316,6 +316,19 @@ def parse_args():
         choices=["clm", "mlm"],
         help="Language modeling objective for the model and training."
     )
+    parser.add_argument(
+        "--use_flash_attention_2",
+        action="store_true",
+        default=False,
+        help="Whether to enable FlashAttention-2 for faster and more efficient attention computation."
+    )
+    parser.add_argument(
+        "--torch_dtype",
+        type=str,
+        default="auto",
+        choices=["float32", "float16", "bfloat16", "auto"],
+        help="The dtype to use for the model. Defaults to `auto`, which loads the type from the model config."
+    )
 
     args = parser.parse_args()
 
@@ -687,27 +700,27 @@ def main():
         eval_dataset, shuffle=False, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size
     )
 
+    model_kwargs = {
+        "config": config,
+        "low_cpu_mem_usage": args.low_cpu_mem_usage,
+        "trust_remote_code": args.trust_remote_code,
+    }
+    if args.model_name_or_path:
+        model_kwargs["pretrained_model_name_or_path"] = args.model_name_or_path
+        model_kwargs["from_tf"] = bool(".ckpt" in args.model_name_or_path)
+    if args.torch_dtype != "auto":
+        model_kwargs["torch_dtype"] = args.torch_dtype
+    if args.use_flash_attention_2:
+        model_kwargs["attn_implementation "] = "flash_attention_2"
     if args.language_modeling_objective == "clm":
         if args.model_name_or_path:
-            model = AutoModelForCausalLM.from_pretrained(
-                args.model_name_or_path,
-                from_tf=bool(".ckpt" in args.model_name_or_path),
-                config=config,
-                low_cpu_mem_usage=args.low_cpu_mem_usage,
-                trust_remote_code=args.trust_remote_code,
-            )
+            model = AutoModelForCausalLM.from_pretrained(**model_kwargs)
         else:
             logger.info("Training new model from scratch")
             model = AutoModelForCausalLM.from_config(config, trust_remote_code=args.trust_remote_code)
     else:
         if args.model_name_or_path:
-            model = AutoModelForMaskedLM.from_pretrained(
-                args.model_name_or_path,
-                from_tf=bool(".ckpt" in args.model_name_or_path),
-                config=config,
-                low_cpu_mem_usage=args.low_cpu_mem_usage,
-                trust_remote_code=args.trust_remote_code,
-            )
+            model = AutoModelForMaskedLM.from_pretrained(**model_kwargs)
         else:
             logger.info("Training new model from scratch")
             model = AutoModelForMaskedLM.from_config(config, trust_remote_code=args.trust_remote_code)

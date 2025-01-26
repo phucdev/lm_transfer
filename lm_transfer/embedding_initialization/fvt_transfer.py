@@ -262,7 +262,7 @@ class FVTTokenizerTransfer(TokenizerTransfer):
             if new_token in gen_vocab:
                 # if the same token exists in the old vocabulary, take its embedding
                 old_index = gen_vocab[new_token]
-                tokens_map[new_index] = [old_index]
+                tokens_map[new_index] = torch.tensor([old_index], dtype=torch.long)
                 self.overlap_based_initialized_tokens += 1
             else:
                 # if not, tokenize the new token using the old vocabulary
@@ -313,8 +313,8 @@ class FVTTokenizerTransfer(TokenizerTransfer):
 
                 self.sources[self.id_to_target_token[new_index]] = (
                     [self.id_to_source_token[int(i)] for i in old_indices],
-                    old_indices.tolist() if isinstance(old_indices, torch.Tensor) else old_indices,
-                    weights if isinstance(weights, torch.Tensor) else weights
+                    old_indices.tolist(),
+                    weights
                 )
             else:
                 # Random initialization for tokens that could not be found in the source vocabulary

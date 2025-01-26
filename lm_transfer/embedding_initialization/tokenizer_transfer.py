@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Tuple, Dict, Optional
+from typing import Tuple, Dict
 
 import torch
 import logging
@@ -79,7 +79,7 @@ class TokenizerTransfer:
         self.overlap_based_initialized_tokens = 0
         self.cleverly_initialized_tokens = 0
         self.transfer_method = None
-        self.sources: Optional[Dict[str, Tuple]] = None     # Target Token -> (Source Tokens, Source Token IDs, Weights)
+        self.sources: Dict[str, Tuple] = {}     # Target Token -> (Source Tokens, Source Token IDs, Weights)
 
     def save_parameters_to_dict(self):
         parameters_dict = {

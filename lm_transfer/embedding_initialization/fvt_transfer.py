@@ -153,7 +153,7 @@ class FVTTokenizerTransfer(TokenizerTransfer):
         old_tokens = [self.id_to_source_token[int(i)] for i in old_indices]
         if len(old_indices) == 1:
             # Direct copy for overlapping tokens
-            old_indices = torch.tensor(old_indices, dtype=torch.long)
+            old_indices = old_indices.to(torch.long)
             old_embedding = gen_matrix[old_indices]
             return old_embedding, [1.0]
         else:
@@ -169,7 +169,7 @@ class FVTTokenizerTransfer(TokenizerTransfer):
                 total = sum(freqs)
                 if total == 0:
                     # fallback to unweighted mean
-                    old_indices = torch.tensor(old_indices, dtype=torch.long)
+                    old_indices = old_indices.to(torch.long)
                     old_embedding = torch.mean(gen_matrix[old_indices], dim=0)
                     weights = [1.0 / len(old_indices)] * len(old_indices)
                 else:
@@ -210,7 +210,7 @@ class FVTTokenizerTransfer(TokenizerTransfer):
                             old_embedding += w * gen_matrix[s]
                 else:
                     # in the original code: old_embedding = torch.mean(gen_matrix[old_indices], axis=0)
-                    old_indices = torch.tensor(old_indices, dtype=torch.long)
+                    old_indices = old_indices.to(torch.long)
                     old_embedding = torch.mean(gen_matrix[old_indices], dim=0)
                     weights = [1.0 / len(old_indices)] * len(old_indices)
             # In case we average multiple source embeddings, we can optionally rescale the resulting embedding to match
@@ -313,8 +313,8 @@ class FVTTokenizerTransfer(TokenizerTransfer):
 
                 self.sources[self.id_to_target_token[new_index]] = (
                     [self.id_to_source_token[int(i)] for i in old_indices],
-                    [old_indices],
-                    weights
+                    old_indices.tolist() if isinstance(old_indices, torch.Tensor) else old_indices,
+                    weights if isinstance(weights, torch.Tensor) else weights
                 )
             else:
                 # Random initialization for tokens that could not be found in the source vocabulary

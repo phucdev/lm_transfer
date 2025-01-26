@@ -154,10 +154,11 @@ def random_embedding_initialization(
         source_model_name="FacebookAI/roberta-base",
         target_tokenizer_name="phucdev/vi-bpe-culturax-4g-sample"
 ):
+    target_model_path = os.path.join(output_dir, "random_initialization")
     transfer_pipeline = RandomInitializationTokenizerTransfer(
         source_model_name,
         target_tokenizer_name,
-        target_model_path=os.path.join(output_dir, "random_initialization")
+        target_model_path=target_model_path
     )
     transfer_pipeline.transfer()
     return transfer_pipeline.get_transfer_statistics()
@@ -173,6 +174,7 @@ def ramen_embedding_initialization(
         target_tokenizer_name="phucdev/vi-bpe-culturax-4g-sample",
         num_samples=None
 ):
+    target_model_path = os.path.join(output_dir, "ramen_initialization")
     transfer_pipeline = RamenTokenizerTransfer(
         source_model_name,
         target_tokenizer_name,
@@ -180,10 +182,13 @@ def ramen_embedding_initialization(
         source_language_identifier=source_language_identifier,
         target_language_identifier=target_language_identifier,
         corpus=corpus,
-        target_model_path=os.path.join(output_dir, "ramen_initialization"),
+        target_model_path=target_model_path,
         num_samples=num_samples
     )
     transfer_pipeline.transfer()
+    sources = transfer_pipeline.get_sources_as_str()
+    with open(os.path.join(target_model_path, "sources.json"), "w") as f:
+        f.write(sources)
     return transfer_pipeline.get_transfer_statistics()
 
 
@@ -195,15 +200,19 @@ def wechsel_embedding_initialization(
         source_language_identifier="en",
         target_language_identifier="vi"
 ):
+    target_model_path = os.path.join(output_dir, "wechsel_initialization")
     transfer_pipeline = WechselTokenizerTransfer(
         source_model_name,
         target_tokenizer_name,
         bilingual_dictionary=bilingual_dictionary,
         source_language_identifier=source_language_identifier,
         target_language_identifier=target_language_identifier,
-        target_model_path=os.path.join(output_dir, "wechsel_initialization")
+        target_model_path=target_model_path
     )
     transfer_pipeline.transfer()
+    sources = transfer_pipeline.get_sources_as_str()
+    with open(os.path.join(target_model_path, "sources.json"), "w") as f:
+        f.write(sources)
     return transfer_pipeline.get_transfer_statistics()
 
 
@@ -216,6 +225,7 @@ def wechsel_aligned_embedding_initialization(
         leverage_overlap=False,
         overwrite_with_overlap=False
 ):
+    target_model_path = os.path.join(output_dir, "wechsel_aligned_initialization")
     transfer_pipeline = WechselTokenizerTransfer(
         source_model_name,
         target_tokenizer_name,
@@ -224,11 +234,14 @@ def wechsel_aligned_embedding_initialization(
         bilingual_dictionary=None,
         source_language_identifier=source_language_identifier,
         target_language_identifier=target_language_identifier,
-        target_model_path=os.path.join(output_dir, "wechsel_aligned_initialization"),
+        target_model_path=target_model_path,
         leverage_overlap=leverage_overlap,
         overwrite_with_overlap=overwrite_with_overlap
     )
     transfer_pipeline.transfer()
+    sources = transfer_pipeline.get_sources_as_str()
+    with open(os.path.join(target_model_path, "sources.json"), "w") as f:
+        f.write(sources)
     return transfer_pipeline.get_transfer_statistics()
 
 
@@ -240,6 +253,7 @@ def wechsel_rcsls_embedding_initialization(
         source_language_identifier="en",
         target_language_identifier="vi"
 ):
+    target_model_path = os.path.join(output_dir, "wechsel_rcsls_initialization")
     transfer_pipeline = WechselTokenizerTransfer(
         source_model_name,
         target_tokenizer_name,
@@ -250,9 +264,12 @@ def wechsel_rcsls_embedding_initialization(
         bilingual_dictionary=None,
         source_language_identifier=source_language_identifier,
         target_language_identifier=target_language_identifier,
-        target_model_path=os.path.join(output_dir, "wechsel_rcsls_initialization"),
+        target_model_path=target_model_path,
     )
     transfer_pipeline.transfer()
+    sources = transfer_pipeline.get_sources_as_str()
+    with open(os.path.join(target_model_path, "sources.json"), "w") as f:
+        f.write(sources)
     return transfer_pipeline.get_transfer_statistics()
 
 
@@ -264,17 +281,21 @@ def wechsel_overlap_embedding_initialization(
         source_language_identifier="en",
         target_language_identifier="vi"
 ):
+    target_model_path = os.path.join(output_dir, "wechsel_overlap_initialization")
     transfer_pipeline = WechselTokenizerTransfer(
         source_model_name,
         target_tokenizer_name,
         bilingual_dictionary=bilingual_dictionary,
         source_language_identifier=source_language_identifier,
         target_language_identifier=target_language_identifier,
-        target_model_path=os.path.join(output_dir, "wechsel_overlap_initialization"),
+        target_model_path=target_model_path,
         leverage_overlap=True,
         overwrite_with_overlap=True
     )
     transfer_pipeline.transfer()
+    sources = transfer_pipeline.get_sources_as_str()
+    with open(os.path.join(target_model_path, "sources.json"), "w") as f:
+        f.write(sources)
     return transfer_pipeline.get_transfer_statistics()
 
 
@@ -287,6 +308,7 @@ def focus_monolingual_embedding_initialization(
         processes=None,
         fasttext_model_dim=300
 ):
+    target_model_path = os.path.join(output_dir, "focus_monolingual_initialization")
     transfer_pipeline = FocusTokenizerTransfer(
         source_model_name,
         target_tokenizer_name,
@@ -294,9 +316,12 @@ def focus_monolingual_embedding_initialization(
         target_training_data_path=target_training_data_path,
         processes=processes,
         fasttext_model_dim=fasttext_model_dim,
-        target_model_path=os.path.join(output_dir, "focus_monolingual_initialization")
+        target_model_path=target_model_path
     )
     transfer_pipeline.transfer()
+    sources = transfer_pipeline.get_sources_as_str()
+    with open(os.path.join(target_model_path, "sources.json"), "w") as f:
+        f.write(sources)
     return transfer_pipeline.get_transfer_statistics()
 
 
@@ -305,12 +330,16 @@ def fvt_embedding_initialization(
         source_model_name="FacebookAI/xlm-roberta-base",
         target_tokenizer_name="phucdev/vi-spm-culturax-4g-sample",
 ):
+    target_model_path = os.path.join(output_dir, "fvt_initialization")
     transfer_pipeline = FVTTokenizerTransfer(
         source_model_name,
         target_tokenizer_name,
-        target_model_path=os.path.join(output_dir, "fvt_initialization")
+        target_model_path=target_model_path
     )
     transfer_pipeline.transfer()
+    sources = transfer_pipeline.get_sources_as_str()
+    with open(os.path.join(target_model_path, "sources.json"), "w") as f:
+        f.write(sources)
     return transfer_pipeline.get_transfer_statistics()
 
 
@@ -319,14 +348,18 @@ def fvt_subword_length_embedding_initialization(
         source_model_name="FacebookAI/xlm-roberta-base",
         target_tokenizer_name="phucdev/vi-spm-culturax-4g-sample",
 ):
+    target_model_path = os.path.join(output_dir, "fvt_subword_length_initialization")
     # Intuitively, subwords with longer length should contain more relevant information
     transfer_pipeline = FVTTokenizerTransfer(
         source_model_name,
         target_tokenizer_name,
-        target_model_path=os.path.join(output_dir, "fvt_subword_length_initialization"),
+        target_model_path=target_model_path,
         aggregation_method="subword_length_weighted"
     )
     transfer_pipeline.transfer()
+    sources = transfer_pipeline.get_sources_as_str()
+    with open(os.path.join(target_model_path, "sources.json"), "w") as f:
+        f.write(sources)
     return transfer_pipeline.get_transfer_statistics()
 
 
@@ -335,15 +368,19 @@ def fvt_minimize_punctuation_embedding_initialization(
         source_model_name="FacebookAI/xlm-roberta-base",
         target_tokenizer_name="phucdev/vi-spm-culturax-4g-sample",
 ):
+    target_model_path = os.path.join(output_dir, "fvt_minimize_punctuation_initialization")
     # With SPM tokenizers a lot of target tokens contain punctuation characters
     # -> we want to minimize the impact of punctuation tokens on the target embedding
     transfer_pipeline = FVTTokenizerTransfer(
         source_model_name,
         target_tokenizer_name,
-        target_model_path=os.path.join(output_dir, "fvt_minimize_punctuation_initialization"),
+        target_model_path=target_model_path,
         minimize_punctuation_weight=True
     )
     transfer_pipeline.transfer()
+    sources = transfer_pipeline.get_sources_as_str()
+    with open(os.path.join(target_model_path, "sources.json"), "w") as f:
+        f.write(sources)
     return transfer_pipeline.get_transfer_statistics()
 
 
@@ -352,13 +389,17 @@ def fvt_rescale_initialization(
         source_model_name="FacebookAI/xlm-roberta-base",
         target_tokenizer_name="phucdev/vi-spm-culturax-4g-sample",
 ):
+    target_model_path = os.path.join(output_dir, "fvt_rescale_initialization")
     transfer_pipeline = FVTTokenizerTransfer(
         source_model_name,
         target_tokenizer_name,
-        target_model_path=os.path.join(output_dir, "fvt_rescale_initialization"),
+        target_model_path=target_model_path,
         rescale=True
     )
     transfer_pipeline.transfer()
+    sources = transfer_pipeline.get_sources_as_str()
+    with open(os.path.join(target_model_path, "sources.json"), "w") as f:
+        f.write(sources)
     return transfer_pipeline.get_transfer_statistics()
 
 
@@ -370,12 +411,13 @@ def fvt_freq_weighted_minimize_punctuation_embedding_initialization(
         num_proc=None,
         freq_dict_path=None
 ):
+    target_model_path = os.path.join(output_dir, "fvt_freq_weighted_minimize_punctuation_initialization")
     # Weight source token embeddings by their frequency in the training data
     # -> frequent tokens should have better quality embeddings
     transfer_pipeline = FVTTokenizerTransfer(
         source_model_name,
         target_tokenizer_name,
-        target_model_path=os.path.join(output_dir, "fvt_freq_weighted_minimize_punctuation_initialization"),
+        target_model_path=target_model_path,
         minimize_punctuation_weight=True,
         aggregation_method="freq_weighted",
         target_training_data_path=target_training_data_path,
@@ -383,6 +425,9 @@ def fvt_freq_weighted_minimize_punctuation_embedding_initialization(
         freq_dict_path=freq_dict_path
     )
     transfer_pipeline.transfer()
+    sources = transfer_pipeline.get_sources_as_str()
+    with open(os.path.join(target_model_path, "sources.json"), "w") as f:
+        f.write(sources)
     return transfer_pipeline.get_transfer_statistics()
 
 
@@ -395,6 +440,7 @@ def focus_multilingual_embedding_initialization(
         fasttext_model_dim=300,
         processes=None
 ):
+    target_model_path = os.path.join(output_dir, "focus_multilingual_initialization")
     transfer_pipeline = FocusTokenizerTransfer(
         source_model_name,
         target_tokenizer_name,
@@ -402,9 +448,12 @@ def focus_multilingual_embedding_initialization(
         target_training_data_path=target_training_data_path,
         processes=processes,
         fasttext_model_dim=fasttext_model_dim,
-        target_model_path=os.path.join(output_dir, "focus_multilingual_initialization")
+        target_model_path=target_model_path
     )
     transfer_pipeline.transfer()
+    sources = transfer_pipeline.get_sources_as_str()
+    with open(os.path.join(target_model_path, "sources.json"), "w") as f:
+        f.write(sources)
     return transfer_pipeline.get_transfer_statistics()
 
 

@@ -231,8 +231,8 @@ class FocusTokenizerTransfer(OverlapTokenizerTransfer):
         })
         return parameters
 
-    @staticmethod
     def focus_additional_token_initialization(
+            self,
             overlapping_tokens: Dict[str, OverlappingToken],
             new_tokens: Dict[str, NewToken],
             source_embeddings: Tensor,
@@ -278,6 +278,7 @@ class FocusTokenizerTransfer(OverlapTokenizerTransfer):
             mask = overlapping_emb_weights > 0.0
             masked_overlapping_emb_weights = overlapping_emb_weights[mask]
             masked_overlapping_src_embs = overlapping_src_embs[mask]
+            filtered_overlapping_tokens_lst = [t for t, m in zip(overlapping_tokens_lst, mask) if m]
 
             weighted_src_embs = torch.mul(masked_overlapping_src_embs, masked_overlapping_emb_weights.unsqueeze(1))
             # It's a convex combination because the weights sum up to 1
@@ -285,6 +286,13 @@ class FocusTokenizerTransfer(OverlapTokenizerTransfer):
 
             new_token_target_vocab_idx = new_tokens_lst[new_token_idx].target.id
             target_embeddings[new_token_target_vocab_idx] = convex_combination
+
+            # Update sources
+            self.sources[new_tokens_lst[new_token_idx].target.native_form] = (
+                [t.source[0].native_form for t in filtered_overlapping_tokens_lst],
+                [t.source[0].id for t in filtered_overlapping_tokens_lst],
+                masked_overlapping_emb_weights.tolist()
+            )
         return target_embeddings
 
     @override
@@ -314,6 +322,12 @@ class FocusTokenizerTransfer(OverlapTokenizerTransfer):
             source_embedding = embs_lst[0]
             target_embeddings[overlapping_token.target.id] = source_embedding
             self.overlap_based_initialized_tokens += 1
+            self.sources[overlapping_token.target.native_form] = (
+                [overlapping_token.source[0].native_form],
+                [overlapping_token.source[0].id],
+                [1.0],
+                [1.0]
+            )
         logger.info(f"Copied embeddings for {len(self.overlapping_tokens)} overlapping tokens.")
 
         ###########################################################

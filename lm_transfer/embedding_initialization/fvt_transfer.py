@@ -147,13 +147,15 @@ class FVTTokenizerTransfer(TokenizerTransfer):
         freq_counter: dictionary mapping old_subword -> frequency
         punc_weight_factor: multiply weight for punctuation tokens with this factor
         avg_source_norm: average L2 norm of the source embeddings
+
+        Returns the weighted mean of the embeddings of the old/source tokens and the weights.
         """
         old_tokens = [self.id_to_source_token[int(i)] for i in old_indices]
         if len(old_indices) == 1:
             # Direct copy for overlapping tokens
             old_indices = torch.tensor(old_indices, dtype=torch.long)
             old_embedding = gen_matrix[old_indices]
-            return old_embedding
+            return old_embedding, [1.0]
         else:
             if freq_counter is not None and self.aggregation_method == "freq_weighted":
                 # Compute weights
@@ -169,6 +171,7 @@ class FVTTokenizerTransfer(TokenizerTransfer):
                     # fallback to unweighted mean
                     old_indices = torch.tensor(old_indices, dtype=torch.long)
                     old_embedding = torch.mean(gen_matrix[old_indices], dim=0)
+                    weights = [1.0 / len(old_indices)] * len(old_indices)
                 else:
                     if self.log_scale:
                         # To handle huge disparity between frequencies we can use log scale
@@ -209,11 +212,12 @@ class FVTTokenizerTransfer(TokenizerTransfer):
                     # in the original code: old_embedding = torch.mean(gen_matrix[old_indices], axis=0)
                     old_indices = torch.tensor(old_indices, dtype=torch.long)
                     old_embedding = torch.mean(gen_matrix[old_indices], dim=0)
+                    weights = [1.0 / len(old_indices)] * len(old_indices)
             # In case we average multiple source embeddings, we can optionally rescale the resulting embedding to match
             # the average L2 norm of the source embeddings
             if len(old_indices) > 1 and self.rescale and avg_source_norm is not None:
                 old_embedding *= avg_source_norm / old_embedding.norm()
-            return old_embedding
+            return old_embedding, weights
 
     @override
     def initialize_embeddings(self, source_embeddings, **kwargs):
@@ -298,7 +302,7 @@ class FVTTokenizerTransfer(TokenizerTransfer):
         self.cleverly_initialized_tokens = 0
         for new_index, old_indices in tokens_map.items():
             if len(old_indices) > 0:
-                old_embedding = self.compute_weighted_mean(
+                old_embedding, weights = self.compute_weighted_mean(
                     old_indices,
                     gen_matrix,
                     freq_counter,
@@ -306,6 +310,12 @@ class FVTTokenizerTransfer(TokenizerTransfer):
                 )
                 in_matrix[new_index] = old_embedding
                 self.cleverly_initialized_tokens += 1
+
+                self.sources[self.id_to_target_token[new_index]] = (
+                    [self.id_to_source_token[int(i)] for i in old_indices],
+                    [old_indices],
+                    weights
+                )
             else:
                 # Random initialization for tokens that could not be found in the source vocabulary
                 in_matrix[new_index] = torch.normal(emb_mean, emb_std, generator=self.gen)

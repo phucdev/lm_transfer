@@ -133,6 +133,12 @@ class CLPTokenizerTransfer(TokenizerTransfer):
         for t in overlapping_tokens:
             target_embeddings[helper_token_to_idx[t]] = source_embeddings[source_token_to_idx[t]]
             self.overlap_based_initialized_tokens += 1
+            self.sources[t] = (
+                [t],    # source tokens
+                [source_token_to_idx[t]],   # source token ids
+                [1.0],  # source token weights
+                [1.0]   # similarities
+            )
         self.cleverly_initialized_tokens = self.overlap_based_initialized_tokens
 
         if missing_tokens:
@@ -156,6 +162,12 @@ class CLPTokenizerTransfer(TokenizerTransfer):
                 target_vec = np.average(overlapping_token_vecs, axis=0, weights=norm_sims)
                 target_embeddings[helper_token_to_idx[t]] = target_vec
                 self.cleverly_initialized_tokens += 1
+                self.sources[t] = (
+                    overlapping_tokens_list,  # source tokens
+                    [source_token_to_idx[t] for t in overlapping_tokens_list],  # source token ids
+                    norm_sims,  # source token weights
+                    token_sims  # similarities
+                )
         else:
             logger.warning("No missing tokens")
 

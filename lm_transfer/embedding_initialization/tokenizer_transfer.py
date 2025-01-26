@@ -223,7 +223,7 @@ class RandomInitializationTokenizerTransfer(TokenizerTransfer):
     @staticmethod
     def small_init(tensor, dim):
         """Fills the input Tensor with values according to the method described in Transformers without Tears: Improving
-        the Normalization of Self-Attention - Nguyen, T. & Salazar, J. (2010), using a normal distribution.
+        the Normalization of Self-Attention - Nguyen, T. & Salazar, J. (2019), using a normal distribution.
         https://github.com/EleutherAI/gpt-neox/blob/main/megatron/model/init_functions.py#L138"""
         # dim is hidden size: in our case it is 1024 for pythia-410m
         std = math.sqrt(2 / (5 * dim))

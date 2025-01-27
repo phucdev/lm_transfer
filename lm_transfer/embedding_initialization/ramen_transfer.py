@@ -270,7 +270,7 @@ class RamenTokenizerTransfer(TokenizerTransfer):
         :param parallel_data_path:
         :param alignment_path:
         :param output_path:
-        :return:
+        :return: A dictionary with translation probabilities for each target token
         """
         language_pair = f"{self.source_language_identifier}-{self.target_language_identifier}"
         if output_path is None:
@@ -387,36 +387,49 @@ class RamenTokenizerTransfer(TokenizerTransfer):
         #     tgt_embs[i] = src_embs[i]
         #     if tgt_bias is not None:
         #         tgt_bias[i] = src_bias[i]
-        for i, t in enumerate(tgt_tokenizer.all_special_tokens):
-            if t in src_tokenizer.all_special_tokens:
-                j = src_tokenizer.convert_tokens_to_ids(t)
-                tgt_embs[i] = src_embs[j]
+        for i, target_token in enumerate(tgt_tokenizer.all_special_tokens):
+            if target_token in src_tokenizer.all_special_tokens:
+                src_token_idx = src_tokenizer.convert_tokens_to_ids(target_token)
+                tgt_embs[i] = src_embs[src_token_idx]
                 if tgt_bias is not None:
-                    tgt_bias[i] = src_bias[j]
-            self.overlap_based_initialized_tokens += 1
+                    tgt_bias[i] = src_bias[src_token_idx]
+                self.sources[target_token] = (
+                    [target_token],
+                    [src_token_idx],
+                    [1.0]
+                )
+                self.overlap_based_initialized_tokens += 1
 
         self.cleverly_initialized_tokens = self.overlap_based_initialized_tokens
 
         logger.info("(6/6) Initializing target embeddings using translation probabilities...")
-        for t, ws in prob.items():
-            # Original is not compatible with FastTokenizers: if not tgt_tokenizer.token_to_id(t): continue
-            if not self.target_token_to_idx[t]:
+        for target_token, trans_probs in prob.items():
+            # Original is not compatible with FastTokenizers: if not tgt_tokenizer.token_to_id(target_token): continue
+            if not self.target_token_to_idx[target_token]:
                 continue
 
-            px, ix = [], []
-            for e, p in ws.items():
-                # get index of the source word e
-                j = src_tokenizer.convert_tokens_to_ids(e)
-                ix.append(j)
-                px.append(p)
-            px = torch.tensor(px).to(src_embs.device)
-            # get index of target word t
-            # Original is not compatible with FastTokenizers: ti = tgt_tokenizer.token_to_id(t)
-            ti = self.target_token_to_idx[t]
-            tgt_embs[ti] = px @ src_embs[ix]
+            weights = []
+            src_token_indices = []
+            src_tokens = []
+            for src_token, trans_prob in trans_probs.items():
+                # get index of the source word src_token
+                src_token_idx = src_tokenizer.convert_tokens_to_ids(src_token)
+                src_token_indices.append(src_token_idx)
+                weights.append(trans_prob)
+                src_tokens.append(src_token)
+            weights = torch.tensor(weights).to(src_embs.device)
+            # get index of target_token
+            # Original is not compatible with FastTokenizers: ti = tgt_tokenizer.token_to_id(target_token)
+            ti = self.target_token_to_idx[target_token]
+            tgt_embs[ti] = weights @ src_embs[src_token_indices]
             self.cleverly_initialized_tokens += 1
             if tgt_bias is not None:
-                tgt_bias[ti] = px.dot(src_bias[ix])
+                tgt_bias[ti] = weights.dot(src_bias[src_token_indices])
+            self.sources[target_token] = (
+                src_tokens,
+                src_token_indices,
+                weights
+            )
         logger.info(f"Initialized embeddings for {self.cleverly_initialized_tokens}/{len(self.target_tokens)} tokens "
                     f"using RAMEN method.")
         return tgt_embs, tgt_bias if tgt_bias is not None else None

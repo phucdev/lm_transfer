@@ -11,7 +11,7 @@ from pathlib import Path
 from collections import defaultdict, Counter
 from overrides import override
 
-from lm_transfer.embedding_initialization.tokenizer_transfer import TokenizerTransfer
+from lm_transfer.embedding_initialization.tokenizer_transfer import OverlapTokenizerTransfer
 from lm_transfer.utils.download_utils import download, decompress_archive
 
 logging.basicConfig(
@@ -22,7 +22,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class RamenTokenizerTransfer(TokenizerTransfer):
+class RamenTokenizerTransfer(OverlapTokenizerTransfer):
     def __init__(
             self,
             source_model_name_or_path: str,
@@ -34,6 +34,8 @@ class RamenTokenizerTransfer(TokenizerTransfer):
             corpus: str = "OpenSubtitles",
             seed: int = 42,
             num_samples: int = None,
+            leverage_overlap: bool = False,
+            overwrite_with_overlap: bool = False,
             **kwargs
     ):
         """
@@ -72,6 +74,8 @@ class RamenTokenizerTransfer(TokenizerTransfer):
         :param corpus: Name of the corpus to download parallel data from, e.g. OpenSubtitles or CCMatrix
         :param seed: Random seed for reproducibility
         :param num_samples: Number of samples to use for calculating the alignment. If None, all samples are used.
+        :param leverage_overlap: Whether to leverage the overlap between the source and target tokenizers
+        :param overwrite_with_overlap: Whether to overwrite the initialized embeddings with the overlap-based ones
         """
         super().__init__(source_model_name_or_path, target_tokenizer_name_or_path, target_model_path, **kwargs)
         self.aligned_data_path = aligned_data_path
@@ -79,6 +83,8 @@ class RamenTokenizerTransfer(TokenizerTransfer):
         self.target_language_identifier = target_language_identifier
         self.corpus = corpus
         self.num_samples = num_samples
+        self.leverage_overlap = leverage_overlap
+        self.overwrite_with_overlap = overwrite_with_overlap
         self.translation_probabilities = None
 
         self.seed = seed
@@ -90,15 +96,19 @@ class RamenTokenizerTransfer(TokenizerTransfer):
 
         :return: A dictionary containing the parameters of the class
         """
-        params = super().save_parameters_to_dict()
-        params.update({
+        parameters = super().save_parameters_to_dict()
+        if not self.leverage_overlap:
+            parameters.pop("exact_match_all")
+            parameters.pop("match_symbols")
+            parameters.pop("fuzzy_match_all")
+        parameters.update({
             "aligned_data_path": self.aligned_data_path,
             "source_language_identifier": self.source_language_identifier,
             "target_language_identifier": self.target_language_identifier,
             "corpus": self.corpus,
             "seed": self.seed,
         })
-        return params
+        return parameters
 
     @staticmethod
     def get_parallel_data(source_language, target_language, data_path, corpus="OpenSubtitles"):
@@ -425,11 +435,38 @@ class RamenTokenizerTransfer(TokenizerTransfer):
             self.cleverly_initialized_tokens += 1
             if tgt_bias is not None:
                 tgt_bias[ti] = weights.dot(src_bias[src_token_indices])
+            if target_token in self.sources:
+                logger.warning(f"Overwriting source embeddings for {target_token}")
             self.sources[target_token] = (
                 src_tokens,
                 src_token_indices,
                 weights
             )
+
+        if self.leverage_overlap:
+            # Optional: Get overlapping tokens and missing tokens
+            overlapping_tokens, missing_tokens = self.get_overlapping_tokens()
+            overlapping_token_indices = []
+            if not overlapping_tokens:
+                raise ValueError("No overlapping tokens found")
+            # Copy source embeddings for overlapping tokens
+            for token, overlapping_token_info in tqdm(overlapping_tokens,
+                                                      desc="Initialize target embeddings for overlapping tokens"):
+                if token not in self.sources or self.overwrite_with_overlap:
+                    target_token_idx = overlapping_token_info.target.id
+                    source_token_idx = overlapping_token_info.source[0].id
+                    tgt_embs[target_token_idx] = source_embeddings[source_token_idx]
+                    overlapping_token_indices.append(target_token_idx)
+                    self.overlap_based_initialized_tokens += 1
+                    if token not in self.sources:
+                        self.cleverly_initialized_tokens += 1
+                    self.sources[token] = (
+                        [overlapping_token_info.source[0].native_form],
+                        [overlapping_token_info.source[0].id],
+                        [1.0],  # weight
+                        [1.0]   # similarity
+                    )
+
         logger.info(f"Initialized embeddings for {self.cleverly_initialized_tokens}/{len(self.target_tokens)} tokens "
                     f"using RAMEN method.")
         return tgt_embs, tgt_bias if tgt_bias is not None else None

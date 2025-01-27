@@ -24,11 +24,14 @@ def parse_args():
     parser.add_argument("--output_dir", type=str, default=None, help="The output directory.")
     parser.add_argument("--is_source_model", action="store_true",default=False, help="Whether the model is a source model.")
     parser.add_argument("--use_serif_font", action="store_true", default=False, help="Use the Source Serif font.")
+    parser.add_argument("--xlim", type=float, default=None, help="The x-axis limit for the histogram.")
+    parser.add_argument("--ylim", type=float, default=None, help="The y-axis limit for the histogram.")
+    parser.add_argument("--log", action="store_true", default=False, help="Use log scale for the histogram.")
     args = parser.parse_args()
     return args
 
 
-def calculate_embedding_norms(model_path, output_dir, is_source_model=False):
+def calculate_embedding_norms(model_path, output_dir, is_source_model=False, xlim=None, ylim=None, log=False):
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     randomly_initialized_idx = list(range(tokenizer.vocab_size))
     direct_copies_idx = []
@@ -75,14 +78,20 @@ def calculate_embedding_norms(model_path, output_dir, is_source_model=False):
     # Plot stacked histogram
     plt.figure(figsize=(10, 6))
     if direct_copies_idx or cleverly_initialized_idx:
-        plt.hist(filtered_norms, bins=50, stacked=True, color=filtered_colors, label=filtered_labels, alpha=0.7)
+        plt.hist(filtered_norms, bins=50, stacked=True, color=filtered_colors, label=filtered_labels, alpha=0.7,
+                 log=log)
     else:
-        plt.hist(filtered_norms, bins=50, color=filtered_colors, alpha=0.7)
+        plt.hist(filtered_norms, bins=50, color=filtered_colors, alpha=0.7, log=log)
     plt.title("Distribution of Embedding Norms")
     plt.xlabel("Norm")
     plt.ylabel("Frequency")
+
+    if xlim is not None:
+        plt.xlim(0, xlim)   # 4.5 for monolingual, 7.5 for multilingual
+    if ylim is not None:
+        plt.ylim(0, ylim)   # 12500 for monolingual, 27000 for multilingual
     plt.grid()
-    if not is_source_model:
+    if not is_source_model and (direct_copies_idx or cleverly_initialized_idx):
         plt.legend()
     plt.savefig(f"{output_dir}/embedding_norms.png")
     plt.show()
@@ -111,11 +120,15 @@ def main():
             model_path = os.path.join(args.input_dir, model_dir)
             if not os.path.isdir(model_path):
                 continue
-            calculate_embedding_norms(model_path, model_path)
+            calculate_embedding_norms(
+                model_path, model_path, args.is_source_model, args.xlim, args.ylim, args.log
+            )
     elif args.model_name_or_path is not None and args.output_dir is not None:
         logger.info(f"Processing model {args.model_name_or_path}")
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-        calculate_embedding_norms(args.model_name_or_path, args.output_dir, args.is_source_model)
+        calculate_embedding_norms(
+            args.model_name_or_path, args.output_dir, args.is_source_model, args.xlim, args.ylim, args.log
+        )
     else:
         raise ValueError("Please provide either --input_dir or both --model_name_or_path and --output_dir")
 

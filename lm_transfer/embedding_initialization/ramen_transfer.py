@@ -440,10 +440,11 @@ class RamenTokenizerTransfer(OverlapTokenizerTransfer):
             self.sources[target_token] = (
                 src_tokens,
                 src_token_indices,
-                weights
+                weights.tolist()
             )
 
         if self.leverage_overlap:
+            logger.info("Leveraging overlap between source and target tokenizers to copy source embeddings directly...")
             # Optional: Get overlapping tokens and missing tokens
             overlapping_tokens, missing_tokens = self.get_overlapping_tokens()
             overlapping_token_indices = []
@@ -455,7 +456,7 @@ class RamenTokenizerTransfer(OverlapTokenizerTransfer):
                 if token not in self.sources or self.overwrite_with_overlap:
                     target_token_idx = overlapping_token_info.target.id
                     source_token_idx = overlapping_token_info.source[0].id
-                    tgt_embs[target_token_idx] = source_embeddings[source_token_idx]
+                    tgt_embs[target_token_idx] = src_embs[source_token_idx]
                     overlapping_token_indices.append(target_token_idx)
                     self.overlap_based_initialized_tokens += 1
                     if token not in self.sources:

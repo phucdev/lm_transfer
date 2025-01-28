@@ -12,6 +12,7 @@ from transformers import AutoTokenizer
 from tqdm import tqdm
 
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -21,12 +22,13 @@ def parse_args():
     parser.add_argument("--source_model_name_or_path", type=str, default=None, help="The source model name or path.")
     parser.add_argument("--normalize", action="store_true", default=False, help="Normalize the sum of weights.")
     parser.add_argument("--use_serif_font", action="store_true", default=False, help="Use the Source Serif font.")
+    parser.add_argument("--show_plot", action="store_true", default=False, help="Show the plot.")
 
     args = parser.parse_args()
     return args
 
 
-def visualize_transfer(model_dir, source_model_name_or_path, normalize=False):
+def visualize_transfer(model_dir, source_model_name_or_path, normalize=False, show_plot=False):
     if Path(model_dir).joinpath("sources.json").exists():
         with open(Path(model_dir).joinpath("sources.json"), "r") as f:
             sources = json.load(f)
@@ -36,17 +38,18 @@ def visualize_transfer(model_dir, source_model_name_or_path, normalize=False):
             source_token_indices = source_info[1]
             source_weights = source_info[2]
             source_weights = np.array(source_weights)
-            for source_token_id, source_weight in zip(source_token_indices, source_weights):
-                src_weight_sums[source_token_id] += source_weight
+            np.add.at(src_weight_sums, source_token_indices, source_weights)
         if normalize:
             src_weight_sums /= src_weight_sums.sum()
-        plt.figure(figsize=(10, 5))
+        logger.info(f"Max source contribution: {src_weight_sums.max()}")
+        plt.figure(figsize=(10, 6))
         plt.bar(range(src_tokenizer.vocab_size), src_weight_sums)
         plt.xlabel("Source token index")
         plt.ylabel("Sum of weights")
         plt.title("Sum of weights of source tokens for transfer")
         plt.savefig(f"{model_dir}/src_embedding_weight_sums.png")
-        plt.show()
+        if show_plot:
+            plt.show()
     else:
         logger.warning(f"No sources.json file found in {model_dir}.")
 
@@ -69,12 +72,12 @@ def main():
         logger.warning(f"Failed to set font family: {e}. Defaulting to system font.")
 
     logger.info(f"Processing models in {args.input_dir}")
-    for model_dir in tqdm(os.listdir(args.input_dir), desc="Plotting source embedding contribution"):
+    for model_dir in tqdm(os.listdir(args.input_dir), desc="Plotting source embedding contribution", position=0):
         model_path = os.path.join(args.input_dir, model_dir)
         if not os.path.isdir(model_path):
             continue
         visualize_transfer(
-            model_path, args.source_model_name_or_path, args.normalize
+            model_path, args.source_model_name_or_path, args.normalize, args.show_plot
         )
 
 

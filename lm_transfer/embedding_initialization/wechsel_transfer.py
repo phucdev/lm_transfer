@@ -726,7 +726,6 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
                     target_matrix[token_id] = random_fallback_matrix[token_id]
                     not_found.append(target_tokenizer.convert_ids_to_tokens([token_id])[0])
 
-        self.overlap_based_initialized_tokens = 0
         for token in source_tokenizer.special_tokens_map.values():
             if isinstance(token, str):
                 token = [token]
@@ -737,6 +736,14 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
                         source_tokenizer.vocab[t]
                     ]
                     self.overlap_based_initialized_tokens += 1
+                    sources[t] = (
+                        [t],
+                        [source_tokenizer.vocab[t]],
+                        [1.0],
+                        [1.0]
+                    )
+                    if t in not_found:
+                        not_found.remove(t)
 
         num_sources = len(sources)
         assert num_sources == n_matched, f"Number of sources ({num_sources}) does not match number of matched tokens ({n_matched})."
@@ -802,7 +809,6 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
         # embeddings were used for WECHSEL initialization
 
         if self.leverage_overlap:
-            self.overlap_based_initialized_tokens = 0
             # Optional: Get overlapping tokens and missing tokens
             overlapping_tokens, missing_tokens = self.get_overlapping_tokens()
             overlapping_token_indices = []
@@ -816,7 +822,13 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
                     source_token_idx = overlapping_token_info.source[0].id
                     target_embeddings[target_token_idx] = source_embeddings[source_token_idx]
                     overlapping_token_indices.append(target_token_idx)
-                    self.overlap_based_initialized_tokens += 1
+                    if token in sources:
+                        # We don't need to update the overlap init counter if the special token was already copied
+                        source_tokens = sources[token][0]
+                        if len(source_tokens) > 1:
+                            self.overlap_based_initialized_tokens += 1
+                    else:
+                        self.overlap_based_initialized_tokens += 1
                     if token in not_found:
                         not_found.remove(token)
                     sources[token] = (

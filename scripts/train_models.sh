@@ -1,3 +1,5 @@
+#!/bin/bash
+
 export HF_DATASETS_CACHE="/vol/tmp/truongph/.cache/huggingface"
 
 accelerate launch lm_transfer/training/run_language_modeling.py \

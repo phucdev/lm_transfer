@@ -1,3 +1,5 @@
+#!/bin/bash
+
 accelerate launch lm_transfer/training/evaluate_language_modeling.py \
   --model_name_or_path=FacebookAI/xlm-roberta-base \
   --preprocessing_num_workers=4 \

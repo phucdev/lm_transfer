@@ -27,11 +27,14 @@ def parse_args():
     parser.add_argument("--xlim", type=float, default=None, help="The x-axis limit for the histogram.")
     parser.add_argument("--ylim", type=float, default=None, help="The y-axis limit for the histogram.")
     parser.add_argument("--log", action="store_true", default=False, help="Use log scale for the histogram.")
+    parser.add_argument("--show_plot", action="store_true", default=False, help="Show the plot.")
     args = parser.parse_args()
     return args
 
 
-def calculate_embedding_norms(model_path, output_dir, is_source_model=False, xlim=None, ylim=None, log=False):
+def calculate_embedding_norms(
+        model_path, output_dir, is_source_model=False, xlim=None, ylim=None, log=False, show_plot=False
+):
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     randomly_initialized_idx = list(range(tokenizer.vocab_size))
     direct_copies_idx = []
@@ -94,7 +97,8 @@ def calculate_embedding_norms(model_path, output_dir, is_source_model=False, xli
     if not is_source_model and (direct_copies_idx or cleverly_initialized_idx):
         plt.legend()
     plt.savefig(f"{output_dir}/embedding_norms.png")
-    plt.show()
+    if show_plot:
+        plt.show()
 
 
 def main():
@@ -121,13 +125,13 @@ def main():
             if not os.path.isdir(model_path):
                 continue
             calculate_embedding_norms(
-                model_path, model_path, args.is_source_model, args.xlim, args.ylim, args.log
+                model_path, model_path, args.is_source_model, args.xlim, args.ylim, args.log, args.show_plot
             )
     elif args.model_name_or_path is not None and args.output_dir is not None:
         logger.info(f"Processing model {args.model_name_or_path}")
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
         calculate_embedding_norms(
-            args.model_name_or_path, args.output_dir, args.is_source_model, args.xlim, args.ylim, args.log
+            args.model_name_or_path, args.output_dir, args.is_source_model, args.xlim, args.ylim, args.log, args.show_plot
         )
     else:
         raise ValueError("Please provide either --input_dir or both --model_name_or_path and --output_dir")

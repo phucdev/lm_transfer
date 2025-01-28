@@ -744,6 +744,7 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
                     )
                     if t in not_found:
                         not_found.remove(t)
+                        n_matched += 1
 
         num_sources = len(sources)
         assert num_sources == n_matched, f"Number of sources ({num_sources}) does not match number of matched tokens ({n_matched})."

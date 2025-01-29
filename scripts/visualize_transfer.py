@@ -7,6 +7,7 @@ import matplotlib as mpl
 import matplotlib.font_manager as fm
 import numpy as np
 
+from tqdm import tqdm
 from transformers import AutoTokenizer
 
 from lm_transfer.utils.utils import NpEncoder
@@ -38,7 +39,7 @@ def visualize_transfer(
         show_plot=False
 ):
     src_emb_usage = {}
-    for model_dir in os.listdir(input_dir):
+    for model_dir in tqdm(os.listdir(input_dir)):
         model_path = os.path.join(input_dir, model_dir)
         if not os.path.isdir(model_path):
             continue
@@ -52,6 +53,9 @@ def visualize_transfer(
         src_weight_sums = np.zeros(src_tokenizer.vocab_size, dtype=np.float32)
         # length of src_token_indices for each target, account for tokens that were randomly initialized
         target_sources_count = [0] * (tgt_tokenizer.vocab_size - len(sources))
+        is_used_direct_copy = [False] * src_tokenizer.vocab_size
+        is_used_weighted = [False] * src_tokenizer.vocab_size
+
         for target_token, source_info in sources.items():
             source_token_indices = source_info[1]
             source_weights = source_info[2]
@@ -59,6 +63,11 @@ def visualize_transfer(
             # Accumulate usage counts
             for idx in source_token_indices:
                 src_usage_count[idx] += 1
+            if len(source_token_indices) == 1:
+                is_used_direct_copy[source_token_indices[0]] = True
+            else:
+                for idx in source_token_indices:
+                    is_used_weighted[idx] = True
             source_weights = np.array(source_weights)
             np.add.at(src_weight_sums, source_token_indices, source_weights)
         if normalize:
@@ -96,20 +105,24 @@ def visualize_transfer(
         top_k_contribution = src_weight_sums[top_k_contribution_idx]
         top_k_contribution_tokens = [src_tokenizer.convert_ids_to_tokens(int(idx)) for idx in top_k_contribution_idx]
 
-        # TODO This information can be taken from the transfer_information.json file or simply follow the
-        #  calculate_emb_norms.py code. The numbers here are somehow not correct
-        used_src_tokens = (src_weight_sums > 0).sum()
-        direct_copy_src_tokens = (src_usage_count == 1).sum()
-        not_used_src_tokens = (src_usage_count == 0).sum()
+        # Not used: tokens where both is_used_direct_copy and is_used_weighted are False
+        not_used_src_tokens = np.sum(np.logical_not(np.logical_or(is_used_direct_copy, is_used_weighted)))
+
+        # Direct copy: tokens where is_used_direct_copy is True and is_used_weighted is False
+        used_only_direct_copy_src_tokens = np.sum(np.logical_and(is_used_direct_copy, np.logical_not(is_used_weighted)))
+
+        # Used weighted: tokens where is_used_weighted is True and is_used_direct_copy is False
+        used_only_weighted_src_tokens = np.sum(np.logical_and(is_used_weighted, np.logical_not(is_used_direct_copy)))
+
+        # Used both: tokens where both is_used_direct_copy and is_used_weighted are True
+        used_both_src_tokens = np.sum(np.logical_and(is_used_direct_copy, is_used_weighted))
 
         src_emb_usage[model_dir] = {
             "top_k_contribution": list(zip(top_k_contribution_tokens, top_k_contribution)),
-            "used_src_tokens": used_src_tokens,
-            "direct_copy_src_tokens": direct_copy_src_tokens,
+            "used_only_weighted_src_tokens": used_only_weighted_src_tokens,
+            "used_both_src_tokens": used_both_src_tokens,
+            "used_only_direct_copy_src_tokens": used_only_direct_copy_src_tokens,
             "not_used_src_tokens": not_used_src_tokens,
-            "percentage_used": used_src_tokens / src_tokenizer.vocab_size,
-            "percentage_direct_copy": direct_copy_src_tokens / src_tokenizer.vocab_size,
-            "percentage_not_used": not_used_src_tokens / src_tokenizer.vocab_size,
             "src_weight_sums": src_weight_sums,
         }
 
@@ -119,31 +132,56 @@ def visualize_transfer(
     # Create a bar plot for all models that shows the percentage of source tokens used, direct copies, and not used
     model_names = list(src_emb_usage.keys())
     # TODO: map to pretty model names and for FVT we can skip the variants since they are the same
-    used_src_tokens = [src_emb_usage[model_name]["used_src_tokens"] for model_name in model_names]
-    direct_copy_src_tokens = [src_emb_usage[model_name]["direct_copy_src_tokens"] for model_name in model_names]
-    not_used_src_tokens = [src_emb_usage[model_name]["not_used_src_tokens"] for model_name in model_names]
-    used_non_direct = np.array(used_src_tokens) - np.array(direct_copy_src_tokens)
+    used_only_weighted_src_tokens = np.asarray(
+        [src_emb_usage[model_name]["used_only_weighted_src_tokens"] for model_name in model_names]
+    )
+    used_both_src_tokens = np.asarray(
+        [src_emb_usage[model_name]["used_both_src_tokens"] for model_name in model_names]
+    )
+    used_only_direct_copy_src_tokens = np.asarray(
+        [src_emb_usage[model_name]["used_only_direct_copy_src_tokens"] for model_name in model_names]
+    )
+    not_used_src_tokens = np.asarray(
+        [src_emb_usage[model_name]["not_used_src_tokens"] for model_name in model_names]
+    )
 
     x = np.arange(len(model_names))
     width = 0.35
+    color_used_weighted = "#1f77b4"  # Blue
+    color_used_direct = "#ff7f0e"  # Orange
+    color_not_used = "#7f7f7f"  # Gray
 
     fig, ax = plt.subplots(figsize=fig_size)
 
     # Bottom segment: used_non_direct
-    bar_used_non_direct = ax.bar(
+    bar_used_only_weighted_src_tokens = ax.bar(
         x,
-        used_non_direct,
+        used_only_weighted_src_tokens,
         width,
-        label="Used (Non-Direct Copy)"
+        color=color_used_weighted,
+        label="Used (Weighted Mean)"
     )
 
     # Middle segment: direct_copy_src_tokens
-    bar_direct_copy = ax.bar(
+    bar_used_only_direct_copy_src_tokens = ax.bar(
         x,
-        direct_copy_src_tokens,
+        used_only_direct_copy_src_tokens,
         width,
-        bottom=used_non_direct,
+        bottom=used_only_weighted_src_tokens,
+        color=color_used_direct,
         label="Used (Direct Copy)"
+    )
+
+    # Middle segment: direct_copy_src_tokens
+    bar_used_both_src_tokens = ax.bar(
+        x,
+        used_both_src_tokens,
+        width,
+        bottom=used_only_weighted_src_tokens + used_only_direct_copy_src_tokens,
+        color=color_used_direct,
+        hatch="//",
+        edgecolor=color_used_weighted,
+        label="Used (Direct Copy + Weighted Mean)"
     )
 
     # Top segment: not_used_src_tokens
@@ -151,7 +189,8 @@ def visualize_transfer(
         x,
         not_used_src_tokens,
         width,
-        bottom=used_non_direct + direct_copy_src_tokens,
+        bottom=used_only_weighted_src_tokens + used_only_direct_copy_src_tokens + used_both_src_tokens,
+        color=color_not_used,
         label="Not Used"
     )
 
@@ -159,7 +198,10 @@ def visualize_transfer(
     ax.set_title("Source Token Usage")
     ax.set_xticks(x)
     ax.set_xticklabels(model_names, rotation=45, ha="right")
-    ax.legend()
+    ax.legend(
+        loc="upper left",  # Align the top-left corner of the legend...
+        bbox_to_anchor=(1.05, 1)  # ...to this anchor point (slightly off to the right).
+    )
 
     plt.grid(axis='y', alpha=0.3)  # you can configure grid lines to show only horizontal lines, etc.
     plt.tight_layout()
@@ -180,7 +222,7 @@ def main():
             font_path = "/usr/share/fonts/truetype/Source_Sans_3/static/SourceSans3-Regular.ttf"
         fm.fontManager.addfont(font_path)
         prop = fm.FontProperties(fname=font_path)
-        logger.info(prop.get_name())
+        logger.info(f"Setting {prop.get_name()} as font family.")
         # Set the font globally in rcParams
         mpl.rcParams['font.family'] = prop.get_name()
     except Exception as e:

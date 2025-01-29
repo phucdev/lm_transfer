@@ -31,6 +31,8 @@ def main():
     task_path = "results/extracted_results/vihsd"
     for model in os.listdir(task_path):
         model_path = os.path.join(task_path, model)
+        if not os.path.isdir(model_path):
+            continue
         for run in os.listdir(model_path):
             run_path = os.path.join(model_path, run)
             predictions_path = os.path.join(run_path, "predictions.txt")
@@ -44,7 +46,7 @@ def main():
             weighted_f1 = class_report["weighted avg"]["f1-score"]
             results_file = os.path.join(run_path, "all_results.json")
             with open(results_file, mode="r") as f:
-                print("Processing", results_file)
+                print("Exporting", results_file)
                 results = json.load(f)
                 results["test_accuracy"] = accuracy
                 results["test_macro_f1"] = macro_f1

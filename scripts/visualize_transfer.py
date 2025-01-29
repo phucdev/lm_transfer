@@ -17,6 +17,24 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+METHOD_MAP = {
+  "random_initialization": "RAND",
+  "focus_monolingual_initialization": "FOCUS",
+  "ramen_initialization": "RAMEN",
+  "ramen_overlap_initialization": "RAMEN+Overlap",
+  "wechsel_initialization": "WECHSEL",
+  "wechsel_overlap_initialization": "WECHSEL+Overlap",
+  "wechsel_aligned_initialization": "WECHSEL+PreAligned+Overlap",
+  "wechsel_rcsls_initialization": "WECHSEL+RCSLS",
+  "fvt_initialization": "FVT",
+  "fvt_minimize_punctuation_initialization": "FVT+MinPunct",
+  "fvt_subword_length_initialization": "FVT+SubwordLength",
+  "fvt_rescale_initialization": "FVT+Rescale",
+  "fvt_freq_weighted_minimize_punctuation_initialization": "FVT+FreqWeighted+MinPunct",
+  "focus_multilingual_initialization": "FOCUS",
+}
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Visualize the transfer of a model.")
     parser.add_argument("--input_dir", type=str, default=None, help="The directory containing the models.")
@@ -117,7 +135,8 @@ def visualize_transfer(
         # Used both: tokens where both is_used_direct_copy and is_used_weighted are True
         used_both_src_tokens = np.sum(np.logical_and(is_used_direct_copy, is_used_weighted))
 
-        src_emb_usage[model_dir] = {
+        method_name = METHOD_MAP.get(model_dir, model_dir)
+        src_emb_usage[method_name] = {
             "top_k_contribution": list(zip(top_k_contribution_tokens, top_k_contribution)),
             "used_only_weighted_src_tokens": used_only_weighted_src_tokens,
             "used_both_src_tokens": used_both_src_tokens,
@@ -130,22 +149,27 @@ def visualize_transfer(
         f.write(json.dumps(src_emb_usage, cls=NpEncoder))
 
     # Create a bar plot for all models that shows the percentage of source tokens used, direct copies, and not used
-    model_names = list(src_emb_usage.keys())
-    # TODO: map to pretty model names and for FVT we can skip the variants since they are the same
+    method_names = list(src_emb_usage.keys())
+    # I want to sort the model names in a specific order like they are listed in the METHOD_MAP
+    method_names = sorted(method_names, key=lambda method_name: list(METHOD_MAP.values()).index(method_name))
+    # For multilingual case only keep FOCUS and FVT as the FVT variants have the same values
+    if "FVT" in method_names:
+        method_names = ["FVT", "FOCUS"]
+
     used_only_weighted_src_tokens = np.asarray(
-        [src_emb_usage[model_name]["used_only_weighted_src_tokens"] for model_name in model_names]
+        [src_emb_usage[model_name]["used_only_weighted_src_tokens"] for model_name in method_names]
     )
     used_both_src_tokens = np.asarray(
-        [src_emb_usage[model_name]["used_both_src_tokens"] for model_name in model_names]
+        [src_emb_usage[model_name]["used_both_src_tokens"] for model_name in method_names]
     )
     used_only_direct_copy_src_tokens = np.asarray(
-        [src_emb_usage[model_name]["used_only_direct_copy_src_tokens"] for model_name in model_names]
+        [src_emb_usage[model_name]["used_only_direct_copy_src_tokens"] for model_name in method_names]
     )
     not_used_src_tokens = np.asarray(
-        [src_emb_usage[model_name]["not_used_src_tokens"] for model_name in model_names]
+        [src_emb_usage[model_name]["not_used_src_tokens"] for model_name in method_names]
     )
 
-    x = np.arange(len(model_names))
+    x = np.arange(len(method_names))
     width = 0.35
     color_used_weighted = "#1f77b4"  # Blue
     color_used_direct = "#ff7f0e"  # Orange
@@ -197,7 +221,7 @@ def visualize_transfer(
     ax.set_ylabel("Number of Source Tokens")
     ax.set_title("Source Token Usage")
     ax.set_xticks(x)
-    ax.set_xticklabels(model_names, rotation=45, ha="right")
+    ax.set_xticklabels(method_names, rotation=45, ha="right")
     ax.legend(
         loc="upper left",  # Align the top-left corner of the legend...
         bbox_to_anchor=(1.05, 1)  # ...to this anchor point (slightly off to the right).

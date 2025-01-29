@@ -96,6 +96,7 @@ def calculate_embedding_norms(
     plt.grid()
     if not is_source_model and (direct_copies_idx or cleverly_initialized_idx):
         plt.legend()
+    plt.tight_layout()
     plt.savefig(f"{output_dir}/embedding_norms.png")
     if show_plot:
         plt.show()

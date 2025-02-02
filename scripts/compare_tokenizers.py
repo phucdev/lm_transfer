@@ -18,6 +18,7 @@ def parse_args():
     parser.add_argument("--language", type=str, default=None, choices=["monolingual", "multilingual"],
                         help="The language of the tokenizer (monolingual or multilingual)")
     parser.add_argument("--output_path", type=str, default=None, help="The path to save the plot")
+    parser.add_argument("--title", type=str, default=None, help="The title of the plot")
     return parser.parse_args()
 
 
@@ -111,7 +112,10 @@ def main():
     ax.set_xticks(x)
     ax.set_xticklabels(methods)
     ax.set_ylabel("Number of Tokens")
-    ax.set_title(f"Vocabulary Overlap for {src_model} and {tgt_model}")
+    if args.title:
+        ax.set_title(args.title)
+    else:
+        ax.set_title(f"Vocabulary Overlap for {src_model} and {tgt_model}")
     ax.legend()
 
     # Now label the bars.

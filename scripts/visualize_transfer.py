@@ -113,9 +113,9 @@ def visualize_transfer(
 
         # Contributions to target embeddings per source token (source tokens that were not used are filtered out)
         plt.figure(figsize=fig_size)
-        plt.hist(src_weight_sums[src_usage_count > 0], bins=50, color="blue", alpha=0.7)
-        plt.xlabel("Sum of source token contributions to target embeddings")
-        plt.ylabel("Count of source tokens")
+        plt.hist(src_weight_sums[src_usage_count > 0], bins=50, color="blue", alpha=0.7, log=True)
+        plt.xlabel("Sum of source token weights")
+        plt.ylabel("Count of source tokens (Log scale)")
         plt.title("Source Token Contributions for Embedding Initialization")
         plt.grid()
         plt.tight_layout()

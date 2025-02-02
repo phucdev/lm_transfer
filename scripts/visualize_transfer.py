@@ -19,13 +19,13 @@ logger = logging.getLogger(__name__)
 
 METHOD_MAP = {
   "random_initialization": "RAND",
-  "focus_monolingual_initialization": "FOCUS",
   "ramen_initialization": "RAMEN",
   "ramen_overlap_initialization": "RAMEN+Overlap",
   "wechsel_initialization": "WECHSEL",
   "wechsel_overlap_initialization": "WECHSEL+Overlap",
   "wechsel_aligned_initialization": "WECHSEL+PreAligned+Overlap",
   "wechsel_rcsls_initialization": "WECHSEL+RCSLS",
+  "focus_monolingual_initialization": "FOCUS",
   "fvt_initialization": "FVT",
   "fvt_minimize_punctuation_initialization": "FVT+MinPunct",
   "fvt_subword_length_initialization": "FVT+SubwordLength",
@@ -74,6 +74,10 @@ def visualize_transfer(
         is_used_direct_copy = [False] * src_tokenizer.vocab_size
         is_used_weighted = [False] * src_tokenizer.vocab_size
 
+        num_rand_init = tgt_tokenizer.vocab_size - len(sources)
+        num_direct_copy = 0
+        num_weighted_mean = 0
+
         for target_token, source_info in sources.items():
             source_token_indices = source_info[1]
             source_weights = source_info[2]
@@ -83,9 +87,11 @@ def visualize_transfer(
                 src_usage_count[idx] += 1
             if len(source_token_indices) == 1:
                 is_used_direct_copy[source_token_indices[0]] = True
+                num_direct_copy += 1
             else:
                 for idx in source_token_indices:
                     is_used_weighted[idx] = True
+                num_weighted_mean += 1
             source_weights = np.array(source_weights)
             np.add.at(src_weight_sums, source_token_indices, source_weights)
         if normalize:
@@ -135,6 +141,9 @@ def visualize_transfer(
         # Used both: tokens where both is_used_direct_copy and is_used_weighted are True
         used_both_src_tokens = np.sum(np.logical_and(is_used_direct_copy, is_used_weighted))
 
+        with open(os.path.join(model_path, "transfer_information.json"), "r") as f:
+            transfer_info = json.load(f)
+
         method_name = METHOD_MAP.get(model_dir, model_dir)
         src_emb_usage[method_name] = {
             "top_k_contribution": list(zip(top_k_contribution_tokens, top_k_contribution)),
@@ -144,6 +153,20 @@ def visualize_transfer(
             "not_used_src_tokens": not_used_src_tokens,
             "src_weight_sums": src_weight_sums,
         }
+        if num_weighted_mean + num_direct_copy != transfer_info["cleverly_initialized_tokens"]:
+            logger.warning(
+                f"Number of tokens initialized with clever initialization does not match for {model_dir}."
+                f"Expected: {num_weighted_mean + num_direct_copy}, Transfer Info: {transfer_info['cleverly_initialized_tokens']}"
+            )
+        if num_rand_init != tgt_tokenizer.vocab_size - transfer_info["cleverly_initialized_tokens"]:
+            logger.warning(
+                f"Number of tokens initialized with random initialization does not match for {model_dir}."
+                f"Expected: {num_rand_init}, Transfer Info: {tgt_tokenizer.vocab_size - transfer_info['cleverly_initialized_tokens']}"
+            )
+        src_emb_usage[method_name]["num_direct_copy"] = num_direct_copy
+        src_emb_usage[method_name]["num_weighted_mean"] = num_weighted_mean
+        src_emb_usage[method_name]["num_rand_init"] = num_rand_init
+
 
     with open(os.path.join(input_dir, "src_emb_usage.json"), "w") as f:
         f.write(json.dumps(src_emb_usage, cls=NpEncoder))
@@ -151,7 +174,7 @@ def visualize_transfer(
     # Create a bar plot for all models that shows the percentage of source tokens used, direct copies, and not used
     method_names = list(src_emb_usage.keys())
     # I want to sort the model names in a specific order like they are listed in the METHOD_MAP
-    method_names = sorted(method_names, key=lambda method_name: list(METHOD_MAP.values()).index(method_name))
+    method_names = sorted(method_names, key=lambda m: list(METHOD_MAP.values()).index(m))
     # For multilingual case only keep FOCUS and FVT as the FVT variants have the same values
     if "FVT" in method_names:
         method_names = ["FVT", "FOCUS"]
@@ -230,6 +253,70 @@ def visualize_transfer(
     plt.grid(axis='y', alpha=0.3)  # you can configure grid lines to show only horizontal lines, etc.
     plt.tight_layout()
     plt.savefig(f"{input_dir}/src_token_usage.png")
+    if show_plot:
+        plt.show()
+    plt.close()
+
+    # Create a bar plot for all models that shows how many target embeddings were initialized randomly, with direct copy, and with weighted mean
+    randomly_init_tgt_tokens = np.asarray(
+        [src_emb_usage[model_name]["num_rand_init"] for model_name in method_names]
+    )
+    direct_copy_tgt_tokens = np.asarray(
+        [src_emb_usage[model_name]["num_direct_copy"] for model_name in method_names]
+    )
+    weighted_mean_tgt_tokens = np.asarray(
+        [src_emb_usage[model_name]["num_weighted_mean"] for model_name in method_names]
+    )
+
+    x = np.arange(len(method_names))
+    width = 0.35
+    color_random = "#1f77b4"  # Blue
+    color_direct = "#ff7f0e"  # Orange
+    color_weighted = "#2ca02c"  # Green
+
+    fig, ax = plt.subplots(figsize=fig_size)
+
+    # Bottom segment: randomly_init_tgt_tokens
+    bar_randomly_init_tgt_tokens = ax.bar(
+        x,
+        randomly_init_tgt_tokens,
+        width,
+        color=color_random,
+        label="Random Initialization"
+    )
+
+    # Middle segment: direct_copy_tgt_tokens
+    bar_direct_copy_tgt_tokens = ax.bar(
+        x,
+        direct_copy_tgt_tokens,
+        width,
+        bottom=randomly_init_tgt_tokens,
+        color=color_direct,
+        label="Direct Copy"
+    )
+
+    # Top segment: weighted_mean_tgt_tokens
+    bar_weighted_mean_tgt_tokens = ax.bar(
+        x,
+        weighted_mean_tgt_tokens,
+        width,
+        bottom=randomly_init_tgt_tokens + direct_copy_tgt_tokens,
+        color=color_weighted,
+        label="Weighted Mean Initialization"
+    )
+
+    ax.set_ylabel("Number of Target Embeddings")
+    ax.set_title("Target Embedding Initialization")
+    ax.set_xticks(x)
+    ax.set_xticklabels(method_names, rotation=45, ha="right")
+    ax.legend(
+        loc="upper left",  # Align the top-left corner of the legend...
+        bbox_to_anchor=(1.05, 1)  # ...to this anchor point (slightly off to the right).
+    )
+
+    plt.grid(axis='y', alpha=0.3)  # you can configure grid lines to show only horizontal lines, etc.
+    plt.tight_layout()
+    plt.savefig(f"{input_dir}/tgt_embedding_init.png")
     if show_plot:
         plt.show()
     plt.close()

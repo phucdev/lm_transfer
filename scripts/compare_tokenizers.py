@@ -111,7 +111,7 @@ def main():
     ax.set_xticks(x)
     ax.set_xticklabels(methods)
     ax.set_ylabel("Number of Tokens")
-    ax.set_title("Vocabulary Overlap vs. Missing Tokens")
+    ax.set_title(f"Vocabulary Overlap for {src_model} and {tgt_model}")
     ax.legend()
 
     # Now label the bars.

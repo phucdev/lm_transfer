@@ -114,7 +114,7 @@ def main():
     ax.bar_label(bar_missing, label_type='center', color="white")
 
     plt.tight_layout()
-    plt.grid(axis="y")
+    # plt.grid(axis="y")
     plt.show()
 
     if args.output_path:

@@ -228,7 +228,7 @@ def visualize_transfer(
         color=color_used_direct,
         hatch="//",
         edgecolor=color_used_weighted,
-        label="Used (Direct Copy + Weighted Mean)"
+        label="Used (Direct Copy & Weighted Mean)"
     )
 
     # Top segment: not_used_src_tokens

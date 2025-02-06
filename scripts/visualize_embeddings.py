@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.manifold import TSNE
 from transformers import AutoModel, AutoTokenizer
 
 
@@ -46,68 +47,92 @@ def get_top_neighbors(similarities, token_id, tokenizer, k=5, pool_size=20, dive
     return selected_neighbors
 
 
-def plot_embeddings(embeddings, tokenizer, token_id_a, token_id_b, output_file_path, diversify=False):
-    a_emb = embeddings[token_id_a]
-    b_emb = embeddings[token_id_b]
+def plot_embeddings(
+        embeddings,
+        tokenizer,
+        token_ids,
+        output_file_path,
+        diversify=False,
+        top_k=5,
+        dimension_reduction="umap"
+):
+    """
+    Plot the embeddings of tokens and their top-k nearest neighbors in embedding space.
+    :param embeddings: The word embeddings
+    :param tokenizer: The tokenizer
+    :param token_ids: The token IDs of the input words
+    :param output_file_path: The path to save the plot
+    :param diversify: Whether to exclude minor variants of the same word
+    :param top_k: The number of nearest neighbors to consider
+    :param dimension_reduction: The dimensionality reduction technique to use ("umap" or "tsne")
+    """
+    all_embeddings = []
+    all_words = []
+    colors = ["red", "blue", "green", "purple", "orange", "brown", "pink"]  # Different colors for different tokens
+    color_map = {}
 
-    # Compute cosine similarity to all words in RoBERTa's vocabulary
-    cos_sim = cosine_similarity([a_emb, b_emb], embeddings)
+    # Compute cosine similarities and find nearest neighbors
+    for idx, token_id in enumerate(token_ids):
+        token_emb = embeddings[token_id]
+        cos_sim = cosine_similarity([token_emb], embeddings)[0]
 
-    top_k = 5
-    a_neighbors = get_top_neighbors(cos_sim[0], token_id_a, tokenizer, k=top_k, diversify=diversify)
-    b_neighbors = get_top_neighbors(cos_sim[1], token_id_b, tokenizer, k=top_k, diversify=diversify)
+        # Get top-k diverse neighbors (assumed function)
+        neighbors = get_top_neighbors(cos_sim, token_id, tokenizer, k=top_k, diversify=diversify)
+        neighbor_words = tokenizer.convert_ids_to_tokens(neighbors)
 
-    # Get corresponding words
-    a_words = tokenizer.convert_ids_to_tokens(a_neighbors)
-    b_words = tokenizer.convert_ids_to_tokens(b_neighbors)
+        # Store embeddings
+        all_embeddings.append(token_emb)
+        all_embeddings.extend(embeddings[neighbors])
 
-    # Stack embeddings for visualization
-    embedding_subset = np.vstack([
-        a_emb, embeddings[a_neighbors], b_emb, embeddings[b_neighbors]
-    ])
+        # Store words
+        token_word = tokenizer.convert_ids_to_tokens([token_id])[0]
+        all_words.append((token_word, colors[idx % len(colors)], True))  # True -> Main token
+        for neighbor_word in neighbor_words:
+            all_words.append((neighbor_word, colors[idx % len(colors)], False))  # False -> Neighbor
 
-    # Reduce dimensions using t-SNE
-    umap_reducer = umap.UMAP(n_components=2, random_state=42)
-    embedding_2d = umap_reducer.fit_transform(embedding_subset)
+        # Store color mapping for labels
+        color_map[token_word] = colors[idx % len(colors)]
+
+    # Convert embeddings list to numpy array
+    all_embeddings = np.vstack(all_embeddings)
+
+    # Reduce dimensions
+    if dimension_reduction == "umap":
+        umap_reducer = umap.UMAP(n_components=2, random_state=42)
+        embedding_2d = umap_reducer.fit_transform(all_embeddings)
+    elif dimension_reduction == "tsne":
+        tsne = TSNE(n_components=2, random_state=42)
+        embedding_2d = tsne.fit_transform(all_embeddings)
+    else:
+        raise ValueError("Invalid dimension_reduction argument. Choose either 'umap' or 'tsne'.")
 
     # Extract x, y positions
     x, y = embedding_2d[:, 0], embedding_2d[:, 1]
 
     # Plot
-    plt.figure(figsize=(8, 6))
+    plt.figure(figsize=(10, 7))
 
-    token_a = tokenizer.convert_ids_to_tokens(token_id_a)
-    token_b = tokenizer.convert_ids_to_tokens(token_id_b)
+    for i, (word, color, is_main) in enumerate(all_words):
+        plt.scatter(x[i], y[i], color=color, alpha=1.0 if is_main else 0.6, label=word if is_main else "")
+        plt.text(x[i], y[i], word, fontsize=9, color="black")
 
-    # Plot "tre" and its neighbors
-    plt.scatter(x[0], y[0], color="red", label=token_a)
-    for i in range(1, top_k + 1):
-        plt.scatter(x[i], y[i], color="lightcoral")
-        plt.text(x[i], y[i], a_words[i - 1], fontsize=9, color="darkred")
-
-    # Plot "bamboo" and its neighbors
-    plt.scatter(x[top_k + 1], y[top_k + 1], color="blue", label=token_b)
-    for i in range(top_k + 2, len(x)):
-        plt.scatter(x[i], y[i], color="lightblue")
-        plt.text(x[i], y[i], b_words[i - (top_k + 2)], fontsize=9, color="darkblue")
-
-    plt.title(f"UMAP Projection of '{token_a}' and '{token_b}' in RoBERTa's Embedding Space")
+    plt.title("UMAP Projection of Selected Tokens in Embedding Space")
+    plt.legend(loc="best", fontsize=9, markerscale=0.7)
     plt.grid(True)
-    plt.legend()
     plt.tight_layout()
-    plt.show()
     plt.savefig(output_file_path)
+    plt.show()
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Visualize embeddings in RoBERTa's vocabulary")
-    parser.add_argument("--output_file", type=str, help="Path to save the plot")
+    parser.add_argument("--output_file_path", required=True, type=str, help="Path to save the plot")
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
-    output_file_path = args.output_file
+    output_file_path = args.output_file_path
     # Load English RoBERTa model and tokenizer
     model_name = "roberta-base"
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -115,12 +140,11 @@ def main():
     # Extract embeddings
     with torch.no_grad():
         embeddings = model.embeddings.word_embeddings.weight.cpu().numpy()
-    # token IDs for "tre" and "bamboo" = [6110, 31970]
+    # token IDs for " tre" and " bamboo" = [6110, 31970], " con" and " child" = [2764, 920]
     plot_embeddings(
         embeddings=embeddings,
         tokenizer=tokenizer,
-        token_id_a=6110,
-        token_id_b=31970,
+        token_ids=[6110, 31970, 2764, 920],
         diversify=False,
         output_file_path=output_file_path
     )

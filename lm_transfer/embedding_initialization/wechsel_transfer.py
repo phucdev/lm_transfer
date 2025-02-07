@@ -598,6 +598,9 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
         correspondences = []
 
         for source_word, target_word in dictionary:
+            # What if the translation for an English word consists of multiple words?
+            # E.g. in Vietnamese white space is also used to separate syllables that constitute words
+            # In reality entries in a dictionary often contain multi words, e.g. "federal judge" -> "juez federal"
             for src_w in (source_word, source_word.lower(), source_word.title()):
                 for trg_w in (target_word, target_word.lower(), target_word.title()):
                     src_id = source_embeddings.get_word_id(src_w)

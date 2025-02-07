@@ -210,25 +210,25 @@ def visualize_transfer(
     )
 
     # Middle segment: direct_copy_src_tokens
-    bar_used_only_direct_copy_src_tokens = ax.bar(
-        x,
-        used_only_direct_copy_src_tokens,
-        width,
-        bottom=used_only_weighted_src_tokens,
-        color=color_used_direct,
-        label="Used (Direct Copy)"
-    )
-
-    # Middle segment: direct_copy_src_tokens
     bar_used_both_src_tokens = ax.bar(
         x,
         used_both_src_tokens,
         width,
-        bottom=used_only_weighted_src_tokens + used_only_direct_copy_src_tokens,
+        bottom=used_only_weighted_src_tokens,
         color=color_used_direct,
         hatch="//",
         edgecolor=color_used_weighted,
         label="Used (Direct Copy & Weighted Mean)"
+    )
+
+    # Middle segment: direct_copy_src_tokens
+    bar_used_only_direct_copy_src_tokens = ax.bar(
+        x,
+        used_only_direct_copy_src_tokens,
+        width,
+        bottom=used_both_src_tokens + used_only_weighted_src_tokens,
+        color=color_used_direct,
+        label="Used (Direct Copy)"
     )
 
     # Top segment: not_used_src_tokens

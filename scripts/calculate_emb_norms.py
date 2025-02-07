@@ -31,10 +31,14 @@ def parse_args():
     args = parser.parse_args()
     return args
 
+def calculate_embedding_norms(model_path):
+    model = AutoModelForMaskedLM.from_pretrained(model_path)
+    embeddings = model.get_input_embeddings()
+    embedding_norms = embeddings.weight.norm(dim=1).detach().numpy()
+    return embedding_norms
 
-def calculate_embedding_norms(
-        model_path, output_dir, is_source_model=False, xlim=None, ylim=None, log=False, show_plot=False
-):
+
+def extract_sources(model_path):
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     randomly_initialized_idx = list(range(tokenizer.vocab_size))
     direct_copies_idx = []
@@ -50,17 +54,25 @@ def calculate_embedding_norms(
             else:
                 cleverly_initialized_idx.append(target_token_id)
             randomly_initialized_idx.remove(target_token_id)
+    return {
+        "randomly_initialized_idx": randomly_initialized_idx,
+        "direct_copies_idx": direct_copies_idx,
+        "cleverly_initialized_idx": cleverly_initialized_idx
+    }
 
-    model = AutoModelForMaskedLM.from_pretrained(model_path)
-    embeddings = model.get_input_embeddings()
 
-    embedding_norms = embeddings.weight.norm(dim=1).detach().numpy()
+def plot_embedding_norms(
+        model_path, output_dir, is_source_model=False, xlim=None, ylim=None, log=False, show_plot=False
+):
+    token_indices = extract_sources(model_path)
+
+    embedding_norms = calculate_embedding_norms(model_path)
     with open(f"{output_dir}/embedding_norms.json", "w") as f:
         f.write(json.dumps(embedding_norms.tolist(), cls=NpEncoder))
 
-    randomly_initialized_norms = embedding_norms[randomly_initialized_idx]
-    direct_copies_norms = embedding_norms[direct_copies_idx]
-    cleverly_initialized_norms = embedding_norms[cleverly_initialized_idx]
+    randomly_initialized_norms = embedding_norms[token_indices["randomly_initialized_idx"]]
+    direct_copies_norms = embedding_norms[token_indices["direct_copies_idx"]]
+    cleverly_initialized_norms = embedding_norms[token_indices["cleverly_initialized_idx"]]
 
     # Handle cases where some categories may be empty
     all_norms = [
@@ -80,7 +92,7 @@ def calculate_embedding_norms(
 
     # Plot stacked histogram
     plt.figure(figsize=(10, 6))
-    if direct_copies_idx or cleverly_initialized_idx:
+    if token_indices["direct_copies_idx"] or token_indices["cleverly_initialized_idx"]:
         plt.hist(filtered_norms, bins=50, stacked=True, color=filtered_colors, label=filtered_labels, alpha=0.7,
                  log=log)
     else:
@@ -94,9 +106,11 @@ def calculate_embedding_norms(
     if ylim is not None:
         plt.ylim(0, ylim)   # 12500 for monolingual, 27000 for multilingual
     plt.grid()
-    if not is_source_model and (direct_copies_idx or cleverly_initialized_idx):
+    if not is_source_model and (token_indices["direct_copies_idx"] or token_indices["cleverly_initialized_idx"]):
         plt.legend()
     plt.tight_layout()
+
+
     plt.savefig(f"{output_dir}/embedding_norms.png")
     if show_plot:
         plt.show()
@@ -125,13 +139,13 @@ def main():
             model_path = os.path.join(args.input_dir, model_dir)
             if not os.path.isdir(model_path):
                 continue
-            calculate_embedding_norms(
+            plot_embedding_norms(
                 model_path, model_path, args.is_source_model, args.xlim, args.ylim, args.log, args.show_plot
             )
     elif args.model_name_or_path is not None and args.output_dir is not None:
         logger.info(f"Processing model {args.model_name_or_path}")
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-        calculate_embedding_norms(
+        plot_embedding_norms(
             args.model_name_or_path, args.output_dir, args.is_source_model, args.xlim, args.ylim, args.log, args.show_plot
         )
     else:

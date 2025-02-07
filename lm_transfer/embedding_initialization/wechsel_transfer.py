@@ -386,6 +386,7 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
             cache_dir: str = str(CACHE_DIR),
             leverage_overlap: bool = False,
             overwrite_with_overlap: bool = False,
+            handle_multi_words: bool = False,
             processes: Optional[int] = None,
             seed: int = 42,
             device="cpu",
@@ -444,6 +445,7 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
         :param cache_dir: Directory to cache fasttext models and bilingual dictionary. Defaults to `~/.cache/wechsel`.
         :param leverage_overlap: Whether to leverage overlap between source and target tokens for initialization. Defaults to False.
         :param overwrite_with_overlap: Whether to overwrite the initialized embeddings from WECHSEL with the overlap-based initialization. Defaults to False.
+        :param handle_multi_words: Whether to handle multi-word entries in dictionary. Defaults to False.
         :param processes: Number of processes for parallelized workloads. Defaults to None, which uses heuristics based on available hardware.
         :param seed: Defaults to 42.
         :param device: Defaults to "cpu".
@@ -518,7 +520,12 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
                     source_word, target_word = line.split("\t")
                 except ValueError:
                     source_word, target_word = line.split()
-                dictionary.append((source_word, target_word))
+                if handle_multi_words:
+                    for s_w in source_word.split(" "):
+                        for t_w in target_word.split(" "):
+                            dictionary.append((s_w, t_w))
+                else:
+                    dictionary.append((source_word, target_word))
 
             align_matrix = self.compute_align_matrix_from_dictionary(
                 source_embeddings=fasttext_source_embeddings,
@@ -598,9 +605,6 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
         correspondences = []
 
         for source_word, target_word in dictionary:
-            # What if the translation for an English word consists of multiple words?
-            # E.g. in Vietnamese white space is also used to separate syllables that constitute words
-            # In reality entries in a dictionary often contain multi words, e.g. "federal judge" -> "juez federal"
             for src_w in (source_word, source_word.lower(), source_word.title()):
                 for trg_w in (target_word, target_word.lower(), target_word.title()):
                     src_id = source_embeddings.get_word_id(src_w)

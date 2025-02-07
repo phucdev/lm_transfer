@@ -33,7 +33,7 @@ class FocusTokenizerTransfer(OverlapTokenizerTransfer):
             fasttext_model_path: Optional[str] = None,
             language_identifier: Optional[str] = None,
             fasttext_model_epochs: int = 3,
-            fasttext_model_dim: int = 100,
+            fasttext_model_dim: int = 300,
             fasttext_model_min_count: int = 10,
             processes: Optional[int] = None,
             seed: int = 42,

@@ -602,6 +602,8 @@ class WechselTokenizerTransfer(OverlapTokenizerTransfer):
         :param dictionary:
         :return:
         """
+        # In Artetxe et al. (2016) they additionally do global preprocessing with length normalization and dimension-wise
+        # mean centering
         correspondences = []
 
         for source_word, target_word in dictionary:

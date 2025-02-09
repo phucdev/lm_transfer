@@ -18,20 +18,22 @@ logger = logging.getLogger(__name__)
 
 
 METHOD_MAP = {
-  "random_initialization": "RAND",
-  "ramen_initialization": "RAMEN",
-  "ramen_overlap_initialization": "RAMEN+Overlap",
-  "wechsel_initialization": "WECHSEL",
-  "wechsel_overlap_initialization": "WECHSEL+Overlap",
-  "wechsel_aligned_initialization": "WECHSEL+PreAligned+Overlap",
-  "wechsel_rcsls_initialization": "WECHSEL+RCSLS",
-  "focus_monolingual_initialization": "FOCUS",
-  "fvt_initialization": "FVT",
-  "fvt_minimize_punctuation_initialization": "FVT+MinPunct",
-  "fvt_subword_length_initialization": "FVT+SubwordLength",
-  "fvt_rescale_initialization": "FVT+Rescale",
-  "fvt_freq_weighted_minimize_punctuation_initialization": "FVT+FreqWeighted+MinPunct",
-  "focus_multilingual_initialization": "FOCUS",
+    "random_initialization": "RAND",
+    "ramen_initialization": "RAMEN",
+    "ramen_overlap_initialization": "RAMEN+Overlap",
+    "ramen_sparsemax_initialization": "RAMEN+Sparsemax",
+    "wechsel_initialization": "WECHSEL",
+    "wechsel_overlap_initialization": "WECHSEL+Overlap",
+    "wechsel_aligned_initialization": "WECHSEL+PreAligned+Overlap",
+    "wechsel_rcsls_initialization": "WECHSEL+RCSLS",
+    "focus_monolingual_initialization": "FOCUS",
+    "fvt_initialization": "FVT",
+    "fvt_unk_rand_initialization": "FVT+UnkRand",
+    "fvt_minimize_punctuation_initialization": "FVT+MinPunct",
+    "fvt_subword_length_initialization": "FVT+SubwordLength",
+    "fvt_rescale_initialization": "FVT+Rescale",
+    "fvt_freq_weighted_minimize_punctuation_initialization": "FVT+FreqWeighted+MinPunct",
+    "focus_multilingual_initialization": "FOCUS",
 }
 
 

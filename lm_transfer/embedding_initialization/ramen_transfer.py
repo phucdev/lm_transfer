@@ -4,8 +4,9 @@ import subprocess
 import os
 import numpy as np
 import torch
-from torch import nn
+import entmax
 
+from torch import nn
 from tqdm import tqdm
 from pathlib import Path
 from collections import defaultdict, Counter
@@ -36,6 +37,7 @@ class RamenTokenizerTransfer(OverlapTokenizerTransfer):
             num_samples: int = None,
             leverage_overlap: bool = False,
             overwrite_with_overlap: bool = False,
+            apply_sparsemax: bool = False,
             **kwargs
     ):
         """
@@ -76,6 +78,7 @@ class RamenTokenizerTransfer(OverlapTokenizerTransfer):
         :param num_samples: Number of samples to use for calculating the alignment. If None, all samples are used.
         :param leverage_overlap: Whether to leverage the overlap between the source and target tokenizers
         :param overwrite_with_overlap: Whether to overwrite the initialized embeddings with the overlap-based ones
+        :param apply_sparsemax: Whether to apply sparsemax for the translation probabilities
         """
         super().__init__(source_model_name_or_path, target_tokenizer_name_or_path, target_model_path, **kwargs)
         self.aligned_data_path = aligned_data_path
@@ -85,6 +88,7 @@ class RamenTokenizerTransfer(OverlapTokenizerTransfer):
         self.num_samples = num_samples
         self.leverage_overlap = leverage_overlap
         self.overwrite_with_overlap = overwrite_with_overlap
+        self.apply_sparsemax = apply_sparsemax
         self.translation_probabilities = None
 
         self.seed = seed
@@ -431,10 +435,21 @@ class RamenTokenizerTransfer(OverlapTokenizerTransfer):
             # get index of target_token
             # Original is not compatible with FastTokenizers: ti = tgt_tokenizer.token_to_id(target_token)
             ti = self.target_token_to_idx[target_token]
-            tgt_embs[ti] = weights @ src_embs[src_token_indices]
+
+            if self.apply_sparsemax:
+                sparse_weights = entmax.sparsemax(weights)
+                mask = sparse_weights > 0.0
+                masked_weights = sparse_weights[mask]
+                masked_src_token_indices = torch.tensor(src_token_indices)[mask]
+                tgt_embs[ti] = masked_weights @ src_embs[masked_src_token_indices]
+
+                if tgt_bias is not None:
+                    tgt_bias[ti] = masked_weights @ src_bias[masked_src_token_indices]
+            else:
+                tgt_embs[ti] = weights @ src_embs[src_token_indices]
+                if tgt_bias is not None:
+                    tgt_bias[ti] = weights.dot(src_bias[src_token_indices])
             self.cleverly_initialized_tokens += 1
-            if tgt_bias is not None:
-                tgt_bias[ti] = weights.dot(src_bias[src_token_indices])
             if target_token in self.sources:
                 logger.warning(f"Overwriting source embeddings for {target_token}")
             self.sources[target_token] = (

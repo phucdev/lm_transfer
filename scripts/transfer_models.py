@@ -254,6 +254,36 @@ def ramen_sparsemax_embedding_initialization(
     return transfer_pipeline.get_transfer_statistics()
 
 
+def ramen_top_k_embedding_initialization(
+        output_dir,
+        aligned_data_path,
+        source_language_identifier="en",
+        target_language_identifier="vi",
+        corpus="OpenSubtitles",
+        source_model_name="FacebookAI/roberta-base",
+        target_tokenizer_name="phucdev/vi-bpe-culturax-4g-sample",
+        num_samples=None,
+        top_k=10
+):
+    target_model_path = os.path.join(output_dir, "ramen_top_k_initialization")
+    transfer_pipeline = RamenTokenizerTransfer(
+        source_model_name,
+        target_tokenizer_name,
+        aligned_data_path=aligned_data_path,
+        source_language_identifier=source_language_identifier,
+        target_language_identifier=target_language_identifier,
+        corpus=corpus,
+        target_model_path=target_model_path,
+        num_samples=num_samples,
+        top_k=top_k
+    )
+    transfer_pipeline.transfer()
+    sources = transfer_pipeline.get_sources_as_str()
+    with open(os.path.join(target_model_path, "sources.json"), "w") as f:
+        f.write(sources)
+    return transfer_pipeline.get_transfer_statistics()
+
+
 def wechsel_embedding_initialization(
         output_dir,
         bilingual_dictionary,
@@ -358,6 +388,32 @@ def wechsel_overlap_embedding_initialization(
     sources = transfer_pipeline.get_sources_as_str()
     with open(os.path.join(target_model_path, "sources.json"), "w") as f:
         f.write(sources)
+    return transfer_pipeline.get_transfer_statistics()
+
+
+def ramen_src_norm_initialization(
+        output_dir,
+        aligned_data_path,
+        source_language_identifier="en",
+        target_language_identifier="vi",
+        corpus="OpenSubtitles",
+        source_model_name="FacebookAI/roberta-base",
+        target_tokenizer_name="phucdev/vi-bpe-culturax-4g-sample",
+        num_samples=None
+):
+    target_model_path = os.path.join(output_dir, "ramen_src_norm_initialization")
+    transfer_pipeline = RamenTokenizerTransfer(
+        source_model_name,
+        target_tokenizer_name,
+        aligned_data_path=aligned_data_path,
+        source_language_identifier=source_language_identifier,
+        target_language_identifier=target_language_identifier,
+        corpus=corpus,
+        target_model_path=target_model_path,
+        num_samples=num_samples,
+        use_mean_std_from_source=True
+    )
+    transfer_pipeline.transfer()
     return transfer_pipeline.get_transfer_statistics()
 
 
@@ -566,90 +622,90 @@ def main():
 
     logger.info(f"Args: {transfer_type=}, {source_model_name=}, {target_tokenizer_name=}, {output_dir=}")
     if transfer_type == "monolingual":
-        logger.info("(1/9) Random initialization")
-        with measure_time() as timer:
-            transfer_statistics["random_monolingual"] = random_embedding_initialization(
-                output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name
-            )
-        elapsed_time = timer()
-        transfer_statistics["random_monolingual"]["elapsed_time"] = elapsed_time
-        logger.info(f"Elapsed time: {format_time(elapsed_time)}")
+        # logger.info("(1/10) Random initialization")
+        # with measure_time() as timer:
+        #     transfer_statistics["random_monolingual"] = random_embedding_initialization(
+        #         output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name
+        #     )
+        # elapsed_time = timer()
+        # transfer_statistics["random_monolingual"]["elapsed_time"] = elapsed_time
+        # logger.info(f"Elapsed time: {format_time(elapsed_time)}")
+        #
+        # logger.info("(2/10) RAMEN initialization")
+        # with measure_time() as timer:
+        #     transfer_statistics["RAMEN"] = ramen_embedding_initialization(
+        #         output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name,
+        #         aligned_data_path=aligned_data_path, source_language_identifier=source_language_identifier,
+        #         target_language_identifier=target_language_identifier, corpus=corpus, num_samples=num_samples
+        #     )
+        # elapsed_time = timer()
+        # transfer_statistics["RAMEN"]["elapsed_time"] = elapsed_time
+        # logger.info(f"Elapsed time: {format_time(elapsed_time)}")
+        #
+        # logger.info("(3/10) RAMEN+overlap initialization")
+        # with measure_time() as timer:
+        #     transfer_statistics["RAMEN+overlap"] = ramen_overlap_embedding_initialization(
+        #         output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name,
+        #         aligned_data_path=aligned_data_path, source_language_identifier=source_language_identifier,
+        #         target_language_identifier=target_language_identifier, corpus=corpus, num_samples=num_samples,
+        #         leverage_overlap=True, overwrite_with_overlap=True
+        #     )
+        # elapsed_time = timer()
+        # transfer_statistics["RAMEN+overlap"]["elapsed_time"] = elapsed_time
+        # logger.info(f"Elapsed time: {format_time(elapsed_time)}")
+        #
+        # logger.info("(4/10) WECHSEL initialization")
+        # with measure_time() as timer:
+        #     transfer_statistics["WECHSEL"] = wechsel_embedding_initialization(
+        #         output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name,
+        #         bilingual_dictionary=bilingual_dictionary
+        #     )
+        # elapsed_time = timer()
+        # transfer_statistics["WECHSEL"]["elapsed_time"] = elapsed_time
+        # logger.info(f"Elapsed time: {format_time(elapsed_time)}")
+        #
+        # logger.info("(5/10) WECHSEL+pre-aligned auxiliary embeddings initialization")
+        # with measure_time() as timer:
+        #     transfer_statistics["WECHSEL+aligned"] = wechsel_aligned_embedding_initialization(
+        #         output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name,
+        #         leverage_overlap=True, overwrite_with_overlap=True
+        #     )
+        # elapsed_time = timer()
+        # transfer_statistics["WECHSEL+aligned"]["elapsed_time"] = elapsed_time
+        # logger.info(f"Elapsed time: {format_time(elapsed_time)}")
+        #
+        # logger.info("(6/10) WECHSEL+RCSLS embeddings initialization")
+        # with measure_time() as timer:
+        #     transfer_statistics["WECHSEL+rcsls"] = wechsel_rcsls_embedding_initialization(
+        #         output_dir=output_dir, align_matrix_path=align_matrix_path,
+        #         source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name
+        #     )
+        # elapsed_time = timer()
+        # transfer_statistics["WECHSEL+rcsls"]["elapsed_time"] = elapsed_time
+        # logger.info(f"Elapsed time: {format_time(elapsed_time)}")
+        #
+        # logger.info("(7/10) WECHSEL+overlap initialization")
+        # with measure_time() as timer:
+        #     transfer_statistics["WECHSEL+overlap"] = wechsel_overlap_embedding_initialization(
+        #         output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name,
+        #         bilingual_dictionary=bilingual_dictionary
+        #     )
+        # elapsed_time = timer()
+        # transfer_statistics["WECHSEL+overlap"]["elapsed_time"] = elapsed_time
+        # logger.info(f"Elapsed time: {format_time(elapsed_time)}")
+        #
+        # logger.info("(8/10) FOCUS initialization")
+        # with measure_time() as timer:
+        #     transfer_statistics["FOCUS_monolingual"] = focus_monolingual_embedding_initialization(
+        #         output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name,
+        #         target_training_data_path=target_training_data_path, processes=processes,
+        #         fasttext_model_dim=fasttext_model_dim
+        #     )
+        # elapsed_time = timer()
+        # transfer_statistics["FOCUS_monolingual"]["elapsed_time"] = elapsed_time
+        # logger.info(f"Elapsed time: {format_time(elapsed_time)}")
 
-        logger.info("(2/9) RAMEN initialization")
-        with measure_time() as timer:
-            transfer_statistics["RAMEN"] = ramen_embedding_initialization(
-                output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name,
-                aligned_data_path=aligned_data_path, source_language_identifier=source_language_identifier,
-                target_language_identifier=target_language_identifier, corpus=corpus, num_samples=num_samples
-            )
-        elapsed_time = timer()
-        transfer_statistics["RAMEN"]["elapsed_time"] = elapsed_time
-        logger.info(f"Elapsed time: {format_time(elapsed_time)}")
-
-        logger.info("(3/9) RAMEN+overlap initialization")
-        with measure_time() as timer:
-            transfer_statistics["RAMEN+overlap"] = ramen_overlap_embedding_initialization(
-                output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name,
-                aligned_data_path=aligned_data_path, source_language_identifier=source_language_identifier,
-                target_language_identifier=target_language_identifier, corpus=corpus, num_samples=num_samples,
-                leverage_overlap=True, overwrite_with_overlap=True
-            )
-        elapsed_time = timer()
-        transfer_statistics["RAMEN+overlap"]["elapsed_time"] = elapsed_time
-        logger.info(f"Elapsed time: {format_time(elapsed_time)}")
-
-        logger.info("(4/9) WECHSEL initialization")
-        with measure_time() as timer:
-            transfer_statistics["WECHSEL"] = wechsel_embedding_initialization(
-                output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name,
-                bilingual_dictionary=bilingual_dictionary
-            )
-        elapsed_time = timer()
-        transfer_statistics["WECHSEL"]["elapsed_time"] = elapsed_time
-        logger.info(f"Elapsed time: {format_time(elapsed_time)}")
-
-        logger.info("(5/9) WECHSEL+pre-aligned auxiliary embeddings initialization")
-        with measure_time() as timer:
-            transfer_statistics["WECHSEL+aligned"] = wechsel_aligned_embedding_initialization(
-                output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name,
-                leverage_overlap=True, overwrite_with_overlap=True
-            )
-        elapsed_time = timer()
-        transfer_statistics["WECHSEL+aligned"]["elapsed_time"] = elapsed_time
-        logger.info(f"Elapsed time: {format_time(elapsed_time)}")
-
-        logger.info("(6/9) WECHSEL+RCSLS embeddings initialization")
-        with measure_time() as timer:
-            transfer_statistics["WECHSEL+rcsls"] = wechsel_rcsls_embedding_initialization(
-                output_dir=output_dir, align_matrix_path=align_matrix_path,
-                source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name
-            )
-        elapsed_time = timer()
-        transfer_statistics["WECHSEL+rcsls"]["elapsed_time"] = elapsed_time
-        logger.info(f"Elapsed time: {format_time(elapsed_time)}")
-
-        logger.info("(7/9) WECHSEL+overlap initialization")
-        with measure_time() as timer:
-            transfer_statistics["WECHSEL+overlap"] = wechsel_overlap_embedding_initialization(
-                output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name,
-                bilingual_dictionary=bilingual_dictionary
-            )
-        elapsed_time = timer()
-        transfer_statistics["WECHSEL+overlap"]["elapsed_time"] = elapsed_time
-        logger.info(f"Elapsed time: {format_time(elapsed_time)}")
-
-        logger.info("(8/9) FOCUS initialization")
-        with measure_time() as timer:
-            transfer_statistics["FOCUS_monolingual"] = focus_monolingual_embedding_initialization(
-                output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name,
-                target_training_data_path=target_training_data_path, processes=processes,
-                fasttext_model_dim=fasttext_model_dim
-            )
-        elapsed_time = timer()
-        transfer_statistics["FOCUS_monolingual"]["elapsed_time"] = elapsed_time
-        logger.info(f"Elapsed time: {format_time(elapsed_time)}")
-
-        logger.info("(9/9) RAMEN+sparsemax initialization")
+        logger.info("(9/10) RAMEN+sparsemax initialization")
         with measure_time() as timer:
             transfer_statistics["RAMEN+sparsemax"] = ramen_sparsemax_embedding_initialization(
                 output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name,
@@ -659,6 +715,18 @@ def main():
             )
         elapsed_time = timer()
         transfer_statistics["RAMEN+sparsemax"]["elapsed_time"] = elapsed_time
+        logger.info(f"Elapsed time: {format_time(elapsed_time)}")
+
+        logger.info("(10/10) RAMEN+top_k initialization")
+        with measure_time() as timer:
+            transfer_statistics["RAMEN+top_k"] = ramen_top_k_embedding_initialization(
+                output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name,
+                aligned_data_path=aligned_data_path, source_language_identifier=source_language_identifier,
+                target_language_identifier=target_language_identifier, corpus=corpus, num_samples=num_samples,
+                top_k=10
+            )
+        elapsed_time = timer()
+        transfer_statistics["RAMEN+top_k"]["elapsed_time"] = elapsed_time
         logger.info(f"Elapsed time: {format_time(elapsed_time)}")
     elif transfer_type == "multilingual":
         logger.info("(1/8) Random initialization")

@@ -19,8 +19,9 @@ logger = logging.getLogger(__name__)
 MONOLINGUAL_MODEL_MAP = {
     "random_initialization": "roberta-random_init",
     "ramen_initialization": "roberta-ramen_init",
-    "ramen_overlap_initialization": "roberta-ramen_overlap_init",
     "ramen_sparsemax_initialization": "roberta-ramen_sparsemax_init",
+    "ramen_top_k_initialization": "roberta-ramen_top_k_init",
+    "ramen_overlap_initialization": "roberta-ramen_overlap_init",
     "wechsel_initialization": "roberta-wechsel_init",
     "wechsel_overlap_initialization": "roberta-wechsel_overlap_init",
     "wechsel_aligned_initialization": "roberta-wechsel_aligned_overlap_init",
@@ -45,6 +46,7 @@ METHOD_MAP = {
     "random_initialization": "RAND",
     "ramen_initialization": "R-RAMEN",
     "ramen_sparsemax_initialization": "R-RAMEN+Sparsemax",
+    "ramen_top_k_initialization": "R-RAMEN+TopK",
     "ramen_overlap_initialization": "R-RAMEN+Overlap",
     "wechsel_initialization": "R-WECHSEL",
     "wechsel_overlap_initialization": "R-WECHSEL+Overlap",

@@ -38,6 +38,8 @@ class RamenTokenizerTransfer(OverlapTokenizerTransfer):
             leverage_overlap: bool = False,
             overwrite_with_overlap: bool = False,
             apply_sparsemax: bool = False,
+            top_k: int = None,
+            use_mean_std_from_source: bool = False,
             **kwargs
     ):
         """
@@ -79,6 +81,8 @@ class RamenTokenizerTransfer(OverlapTokenizerTransfer):
         :param leverage_overlap: Whether to leverage the overlap between the source and target tokenizers
         :param overwrite_with_overlap: Whether to overwrite the initialized embeddings with the overlap-based ones
         :param apply_sparsemax: Whether to apply sparsemax for the translation probabilities
+        :param top_k: Number of top-k source tokens to consider for each target token
+        :param use_mean_std_from_source: Whether to use the mean and standard deviation of the source embeddings for the random normal distribution
         """
         super().__init__(source_model_name_or_path, target_tokenizer_name_or_path, target_model_path, **kwargs)
         self.aligned_data_path = aligned_data_path
@@ -90,6 +94,8 @@ class RamenTokenizerTransfer(OverlapTokenizerTransfer):
         self.overwrite_with_overlap = overwrite_with_overlap
         self.apply_sparsemax = apply_sparsemax
         self.translation_probabilities = None
+        self.top_k = top_k
+        self.use_mean_std_from_source = use_mean_std_from_source
 
         self.seed = seed
 
@@ -392,7 +398,19 @@ class RamenTokenizerTransfer(OverlapTokenizerTransfer):
             tgt_bias = src_bias.new_zeros(num_tgt)
         else:
             tgt_bias = None
-        nn.init.normal_(tgt_embs, mean=0, std=emb_dim ** -0.5)
+        if self.use_mean_std_from_source:
+            tgt_embs = torch.from_numpy(
+                np.random.normal(
+                    np.mean(source_embeddings, axis=0),
+                    np.std(source_embeddings, axis=0),
+                    (
+                        len(self.target_tokens),
+                        source_embeddings.shape[1]
+                    )
+                )
+            )
+        else:
+            nn.init.normal_(tgt_embs, mean=0, std=emb_dim ** -0.5)
 
         # copy over embeddings of special words
         self.overlap_based_initialized_tokens = 0
@@ -439,24 +457,48 @@ class RamenTokenizerTransfer(OverlapTokenizerTransfer):
             if self.apply_sparsemax:
                 sparse_weights = entmax.sparsemax(weights)
                 mask = sparse_weights > 0.0
+                if mask.sum() < len(mask):
+                    pass
                 masked_weights = sparse_weights[mask]
                 masked_src_token_indices = torch.tensor(src_token_indices)[mask]
+                masked_src_tokens = [src_tokens[i] for i in range(len(src_tokens)) if mask[i]]
                 tgt_embs[ti] = masked_weights @ src_embs[masked_src_token_indices]
 
                 if tgt_bias is not None:
                     tgt_bias[ti] = masked_weights @ src_bias[masked_src_token_indices]
+
+                self.sources[target_token] = (
+                    masked_src_tokens,
+                    masked_src_token_indices.tolist(),
+                    masked_weights.tolist()
+                )
+            elif self.top_k is not None:
+                # Sort the translation probabilities and only select the top_k of the src_token_indices
+                sorted_indices = torch.argsort(weights, descending=True)
+                top_k_indices = sorted_indices[:self.top_k]
+                top_k_weights = weights[top_k_indices]
+                top_k_src_tokens = [src_tokens[i] for i in top_k_indices]
+                top_k_src_token_indices = [src_token_indices[i] for i in top_k_indices]
+                # Apply softmax to the top-k weights
+                top_k_weights = torch.softmax(top_k_weights, dim=0)
+                tgt_embs[ti] = top_k_weights @ src_embs[top_k_indices]
+
+                self.sources[target_token] = (
+                top_k_src_tokens,
+                top_k_src_token_indices,
+                top_k_weights.tolist()
+            )
             else:
                 tgt_embs[ti] = weights @ src_embs[src_token_indices]
                 if tgt_bias is not None:
                     tgt_bias[ti] = weights.dot(src_bias[src_token_indices])
+                self.sources[target_token] = (
+                    src_tokens,
+                    src_token_indices,
+                    weights.tolist()
+                )
             self.cleverly_initialized_tokens += 1
-            if target_token in self.sources:
-                logger.warning(f"Overwriting source embeddings for {target_token}")
-            self.sources[target_token] = (
-                src_tokens,
-                src_token_indices,
-                weights.tolist()
-            )
+
 
         if self.leverage_overlap:
             logger.info("Leveraging overlap between source and target tokenizers to copy source embeddings directly...")

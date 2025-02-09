@@ -20,8 +20,9 @@ logger = logging.getLogger(__name__)
 METHOD_MAP = {
     "random_initialization": "RAND",
     "ramen_initialization": "RAMEN",
-    "ramen_overlap_initialization": "RAMEN+Overlap",
     "ramen_sparsemax_initialization": "RAMEN+Sparsemax",
+    "ramen_top_k_initialization": "RAMEN+TopK",
+    "ramen_overlap_initialization": "RAMEN+Overlap",
     "wechsel_initialization": "WECHSEL",
     "wechsel_overlap_initialization": "WECHSEL+Overlap",
     "wechsel_aligned_initialization": "WECHSEL+PreAligned+Overlap",

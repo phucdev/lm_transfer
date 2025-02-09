@@ -38,6 +38,7 @@ class FVTTokenizerTransfer(TokenizerTransfer):
             rescale: bool = False,
             minimize_punctuation_weight: bool = False,
             freq_dict_path: Optional[str] = None,
+            randomly_initialize_unk: bool = False,
             **kwargs
     ):
         """
@@ -58,18 +59,19 @@ class FVTTokenizerTransfer(TokenizerTransfer):
             url = "https://aclanthology.org/2022.emnlp-industry.41",
             pages = "409--416",
         }
-        :param source_model_name_or_path:
-        :param target_tokenizer_name_or_path:
-        :param target_model_path:
-        :param seed:
-        :param device:
-        :param aggregation_method:
-        :param target_training_data_path:
-        :param num_proc:
-        :param log_scale:
-        :param rescale:
-        :param minimize_punctuation_weight:
-        :param freq_dict_path:
+        :param source_model_name_or_path: The name or path of the source model.
+        :param target_tokenizer_name_or_path: The name or path of the target tokenizer.
+        :param target_model_path: The save path of the target model.
+        :param seed: The seed for reproducibility.
+        :param device: The device to use for the embeddings.
+        :param aggregation_method: The method to aggregate the embeddings of the source tokens.
+        :param target_training_data_path: The path to the target training data if leveraging token frequency.
+        :param num_proc: The number of processes to use for token frequency collection.
+        :param log_scale: Whether to use log scale for token frequency weights.
+        :param rescale: Whether to rescale the embeddings to match the average L2 norm of the source embeddings.
+        :param minimize_punctuation_weight: Whether to minimize the weight of punctuation tokens.
+        :param freq_dict_path:  The path to the token frequency dictionary.
+        :param randomly_initialize_unk: Whether to randomly initialize the embeddings of target tokens that were decomposed into ["_", "<unk>"] by the source tokenizer.
         """
         super().__init__(source_model_name_or_path, target_tokenizer_name_or_path, target_model_path, **kwargs)
         self.seed = seed
@@ -81,9 +83,14 @@ class FVTTokenizerTransfer(TokenizerTransfer):
         self.rescale = rescale
         self.minimize_punctuation_weight = minimize_punctuation_weight
         self.freq_dict_path = freq_dict_path
+        self.randomly_initialize_unk = randomly_initialize_unk
         self.gen = torch.Generator(device=self.device).manual_seed(self.seed)
         self.id_to_source_token = {v: k for k, v in self.source_tokenizer.get_vocab().items()}
         self.id_to_target_token = {v: k for k, v in self.target_tokenizer.get_vocab().items()}
+        self.unk_token_id = None
+        if hasattr(self.source_tokenizer, "special_tokens_map"):
+            unk_token = self.source_tokenizer.special_tokens_map["unk_token"]
+            self.unk_token_id = self.source_tokenizer.convert_tokens_to_ids(unk_token)
         self.transfer_method = "fvt"
 
     @override
@@ -279,9 +286,14 @@ class FVTTokenizerTransfer(TokenizerTransfer):
                     token_partition = gen_tokenizer(
                         new_token, add_special_tokens=False, return_tensors='pt'
                     )["input_ids"][0]
+                if self.randomly_initialize_unk and self.unk_token_id is not None:
+                    # Check if token was decomposed into ["_", "<unk>"] by the source tokenizer, if yes set token partition to []
+                    # so that the target embedding is randomly initialized
+                    if len(token_partition) > 1 and token_partition[-1] == self.unk_token_id:
+                        token_partition = []
                 tokens_map[new_index] = token_partition
                 if len(token_partition) < 1:
-                    logger.warning(f"Token {tmp_new_token} could not be tokenized with source vocabulary.")
+                    logger.debug(f"Token {tmp_new_token} could not be tokenized with source vocabulary.")
 
         # embeddings_assignment: assigns the embeddings to the new embedding matrix
         # https://github.com/LeonidasY/fast-vocabulary-transfer/blob/9ecbbf2454cff8a27c298e3efc047c29efd32836/fvt/fvt.py#L50

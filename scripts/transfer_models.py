@@ -463,6 +463,26 @@ def fvt_freq_weighted_minimize_punctuation_embedding_initialization(
     return transfer_pipeline.get_transfer_statistics()
 
 
+def fvt_unk_rand_embedding_initialization(
+        output_dir,
+        source_model_name="FacebookAI/xlm-roberta-base",
+        target_tokenizer_name="phucdev/vi-spm-culturax-4g-sample",
+):
+    target_model_path = os.path.join(output_dir, "fvt_unk_rand_initialization")
+    # Randomly initialize embeddings for unknown tokens
+    transfer_pipeline = FVTTokenizerTransfer(
+        source_model_name,
+        target_tokenizer_name,
+        target_model_path=target_model_path,
+        randomly_initialize_unk=True
+    )
+    transfer_pipeline.transfer()
+    sources = transfer_pipeline.get_sources_as_str()
+    with open(os.path.join(target_model_path, "sources.json"), "w") as f:
+        f.write(sources)
+    return transfer_pipeline.get_transfer_statistics()
+
+
 def focus_multilingual_embedding_initialization(
         output_dir,
         target_training_data_path,
@@ -599,7 +619,7 @@ def main():
         transfer_statistics["FOCUS_monolingual"]["elapsed_time"] = elapsed_time
         logger.info(f"Elapsed time: {format_time(elapsed_time)}")
     elif transfer_type == "multilingual":
-        logger.info("(1/7) Random initialization")
+        logger.info("(1/8) Random initialization")
         with measure_time() as timer:
             transfer_statistics["random_multilingual"] = random_embedding_initialization(
                 output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name
@@ -608,7 +628,7 @@ def main():
         transfer_statistics["random_multilingual"]["elapsed_time"] = elapsed_time
         logger.info(f"Elapsed time: {format_time(elapsed_time)}")
 
-        logger.info("(2/7) FVT initialization")
+        logger.info("(2/8) FVT initialization")
         with measure_time() as timer:
             transfer_statistics["FVT"] = fvt_embedding_initialization(
                 output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name
@@ -617,7 +637,7 @@ def main():
         transfer_statistics["FVT"]["elapsed_time"] = elapsed_time
         logger.info(f"Elapsed time: {format_time(elapsed_time)}")
 
-        logger.info("(3/7) FVT+Subword_Length initialization")
+        logger.info("(3/8) FVT+Subword_Length initialization")
         with measure_time() as timer:
             transfer_statistics["FVT+Subword_Length"] = fvt_subword_length_embedding_initialization(
                 output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name
@@ -626,7 +646,7 @@ def main():
         transfer_statistics["FVT+Subword_Length"]["elapsed_time"] = elapsed_time
         logger.info(f"Elapsed time: {format_time(elapsed_time)}")
 
-        logger.info("(4/7) FVT+Minimize_Punctuation initialization")
+        logger.info("(4/8) FVT+Minimize_Punctuation initialization")
         with measure_time() as timer:
             transfer_statistics["FVT+Minimize_Punctuation"] = fvt_minimize_punctuation_embedding_initialization(
                 output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name
@@ -635,7 +655,7 @@ def main():
         transfer_statistics["FVT+Minimize_Punctuation"]["elapsed_time"] = elapsed_time
         logger.info(f"Elapsed time: {format_time(elapsed_time)}")
 
-        logger.info("(5/7) FVT+Rescale initialization")
+        logger.info("(5/8) FVT+Rescale initialization")
         with measure_time() as timer:
             transfer_statistics["FVT+Rescale"] = fvt_rescale_initialization(
                 output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name
@@ -644,7 +664,7 @@ def main():
         transfer_statistics["FVT+Rescale"]["elapsed_time"] = elapsed_time
         logger.info(f"Elapsed time: {format_time(elapsed_time)}")
 
-        logger.info("(6/7) FVT+Freq_Weighted+Minimize_Punctuation initialization")
+        logger.info("(6/8) FVT+Freq_Weighted+Minimize_Punctuation initialization")
         with measure_time() as timer:
             transfer_statistics["FVT+Freq_Weighted+Minimize_Punctuation"] = fvt_freq_weighted_minimize_punctuation_embedding_initialization(
                 output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name,
@@ -654,7 +674,7 @@ def main():
         transfer_statistics["FVT+Freq_Weighted+Minimize_Punctuation"]["elapsed_time"] = elapsed_time
         logger.info(f"Elapsed time: {format_time(elapsed_time)}")
 
-        logger.info("(7/7) FOCUS initialization")
+        logger.info("(7/8) FOCUS initialization")
         with measure_time() as timer:
             transfer_statistics["FOCUS_multilingual"] = focus_multilingual_embedding_initialization(
                 output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name,
@@ -663,6 +683,15 @@ def main():
             )
         elapsed_time = timer()
         transfer_statistics["FOCUS_multilingual"]["elapsed_time"] = elapsed_time
+        logger.info(f"Elapsed time: {format_time(elapsed_time)}")
+
+        logger.info("(8/8) FVT+UNK_Rand initialization")
+        with measure_time() as timer:
+            transfer_statistics["FVT+UNK_Rand"] = fvt_unk_rand_embedding_initialization(
+                output_dir=output_dir, source_model_name=source_model_name, target_tokenizer_name=target_tokenizer_name
+            )
+        elapsed_time = timer()
+        transfer_statistics["FVT+UNK_Rand"]["elapsed_time"] = elapsed_time
         logger.info(f"Elapsed time: {format_time(elapsed_time)}")
     logger.info(f"All done! Check the models in {output_dir}. "
                 f"You should train these models on target language data before using them.")

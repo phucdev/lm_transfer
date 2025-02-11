@@ -245,13 +245,12 @@ def visualize_transfer(
     )
 
     ax.set_ylabel("Number of Source Tokens")
-    ax.set_title("Source Token Usage")
+    ax.set_title("Source Token Usage", pad=40)
     ax.set_xticks(x)
     ax.set_xticklabels(method_names, rotation=45, ha="right")
-    ax.legend(
-        loc="upper left",  # Align the top-left corner of the legend...
-        bbox_to_anchor=(1.05, 1)  # ...to this anchor point (slightly off to the right).
-    )
+    ax.legend(bbox_to_anchor=(0.5, 1.0), loc='lower center', ncol=4)
+    # Place legend below the plot, centered
+    # ax.legend(bbox_to_anchor=(0.5, -0.15), loc='upper center')
 
     plt.grid(axis='y', alpha=0.3)  # you can configure grid lines to show only horizontal lines, etc.
     plt.tight_layout()
@@ -309,14 +308,13 @@ def visualize_transfer(
     )
 
     ax.set_ylabel("Number of Target Embeddings")
-    ax.set_title("Target Embedding Initialization")
+    ax.set_title("Target Embedding Initialization", pad=40)
     ax.set_xticks(x)
     ax.set_xticklabels(method_names, rotation=45, ha="right")
-    ax.legend(
-        loc="upper left",  # Align the top-left corner of the legend...
-        bbox_to_anchor=(1.05, 1)  # ...to this anchor point (slightly off to the right).
-    )
-
+    ax.legend(bbox_to_anchor=(0.5, 1.0), loc='lower center', ncol=3)
+    # Place legend below the plot, centered
+    # ax.legend(bbox_to_anchor=(0.5, 0.0), loc='upper center')
+    # plt.subplots_adjust(bottom=0.3)
     plt.grid(axis='y', alpha=0.3)  # you can configure grid lines to show only horizontal lines, etc.
     plt.tight_layout()
     plt.savefig(f"{input_dir}/tgt_embedding_init.png")

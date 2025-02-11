@@ -83,6 +83,7 @@ def parse_args():
     parser.add_argument("--ylim", type=float, default=None, help="The y-axis limit for the histogram.")
     parser.add_argument("--log", action="store_true", default=False, help="Use log scale for the histogram.")
     parser.add_argument("--show_plot", action="store_true", default=False, help="Show the plot.")
+    parser.add_argument("--fig_size", type=int, nargs=2, default=[10, 10], help="The size of the plot")
     args = parser.parse_args()
     return args
 
@@ -117,7 +118,14 @@ def extract_sources(model_path):
 
 
 def plot_embedding_norms(
-        model_path, output_dir, is_source_model=False, xlim=None, ylim=None, log=False, show_plot=False
+        model_path,
+        output_dir,
+        is_source_model=False,
+        xlim=None,
+        ylim=None,
+        log=False,
+        show_plot=False,
+        fig_size=(10, 6)
 ):
     """
     Plot the distribution of the norms of the embeddings of a single model.
@@ -128,6 +136,7 @@ def plot_embedding_norms(
     :param ylim:
     :param log:
     :param show_plot:
+    :param fig_size:
     :return:
     """
     token_indices = extract_sources(model_path)
@@ -157,7 +166,7 @@ def plot_embedding_norms(
     filtered_labels = [labels[i] for i, norms in enumerate(all_norms) if len(norms) > 0]
 
     # Plot stacked histogram
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=fig_size)
     if token_indices["direct_copies_idx"] or token_indices["cleverly_initialized_idx"]:
         plt.hist(filtered_norms, bins=50, stacked=True, color=filtered_colors, label=filtered_labels, alpha=0.7,
                  log=log)
@@ -176,12 +185,14 @@ def plot_embedding_norms(
         plt.legend()
     plt.tight_layout()
 
-    plt.savefig(f"{output_dir}/embedding_norms.png")
+    plt.savefig(f"{output_dir}/embedding_norms.pdf")
     if show_plot:
         plt.show()
 
 
-def plot_multi_embedding_norms(models_before, models_after, output_path, xlim=None, ylim=None, log=False):
+def plot_multi_embedding_norms(
+        models_before, models_after, output_path, xlim=None, ylim=None, log=False, fig_size=(10, 6)
+):
     num_models = len(models_before)
     fig, axes = plt.subplots(num_models, 2, figsize=(10, 4 * num_models))
 
@@ -276,7 +287,7 @@ def main():
         logger.info(f"Processing model {args.model_name_or_path}")
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
         plot_embedding_norms(
-            args.model_name_or_path, args.output_dir, args.is_source_model, args.xlim, args.ylim, args.log, args.show_plot
+            args.model_name_or_path, args.output_dir, args.is_source_model, args.xlim, args.ylim, args.log, args.show_plot, args.fig_size
         )
     elif args.input_dir_before is not None and args.input_dir_after is not None and args.output_dir is not None:
         # Plot the norms of the embeddings of multiple models
@@ -307,7 +318,7 @@ def main():
             else:
                 logger.warning(f"Skipping {model_name} as it is not a directory.")
         plot_multi_embedding_norms(
-            models_before, models_after, os.path.join(args.output_dir, "embedding_norms.png"), args.xlim, args.ylim, args.log
+            models_before, models_after, os.path.join(args.output_dir, "embedding_norms.pdf"), args.xlim, args.ylim, args.log, args.fig_size
         )
     else:
         raise ValueError("Please provide either --input_dir or both --model_name_or_path and --output_dir")

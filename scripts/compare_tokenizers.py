@@ -17,7 +17,7 @@ def parse_args():
     parser.add_argument("--title", type=str, default=None, help="The title of the plot")
     parser.add_argument("--include_canonicalized", action="store_true", default=False, help="Include overlap of canonicalized tokens in the plot")
     parser.add_argument("--include_fuzzy", action="store_true", default=False, help="Include overlap of fuzzy matched tokens in the plot")
-    parser.add_argument("--fig_size", type=tuple, default=(7, 5), help="The size of the plot")
+    parser.add_argument("--fig_size", type=int, nargs=2, default=[7, 5], help="The size of the plot")
     return parser.parse_args()
 
 

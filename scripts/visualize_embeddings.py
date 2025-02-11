@@ -1,12 +1,19 @@
 import argparse
 import torch
 import umap
+import logging
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib as mpl
+import matplotlib.font_manager as fm
 
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.manifold import TSNE
 from transformers import AutoModel, AutoTokenizer
+
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 # Get top-k nearest neighbors for each token
@@ -54,7 +61,8 @@ def plot_embeddings(
         output_file_path,
         diversify=False,
         top_k=5,
-        dimension_reduction="umap"
+        dimension_reduction="umap",
+        fig_size=(10, 7)
 ):
     """
     Plot the embeddings of tokens and their top-k nearest neighbors in embedding space.
@@ -65,6 +73,7 @@ def plot_embeddings(
     :param diversify: Whether to exclude minor variants of the same word
     :param top_k: The number of nearest neighbors to consider
     :param dimension_reduction: The dimensionality reduction technique to use ("umap" or "tsne")
+    :param fig_size: The size of the plot
     """
     all_embeddings = []
     all_words = []
@@ -110,14 +119,14 @@ def plot_embeddings(
     x, y = embedding_2d[:, 0], embedding_2d[:, 1]
 
     # Plot
-    plt.figure(figsize=(10, 7))
+    plt.figure(figsize=fig_size)
 
     for i, (word, color, is_main) in enumerate(all_words):
         plt.scatter(x[i], y[i], color=color, alpha=1.0 if is_main else 0.6, label=word if is_main else "")
-        plt.text(x[i], y[i], word, fontsize=9, color="black")
+        plt.text(x[i], y[i], word, fontsize=11, color="black")
 
     plt.title("UMAP Projection of Selected Tokens in Embedding Space")
-    plt.legend(loc="best", fontsize=9, markerscale=0.7)
+    plt.legend(loc="best", fontsize=11, markerscale=0.7)
     plt.grid(True)
     plt.tight_layout()
     plt.savefig(output_file_path)
@@ -127,11 +136,28 @@ def plot_embeddings(
 def parse_args():
     parser = argparse.ArgumentParser(description="Visualize embeddings in RoBERTa's vocabulary")
     parser.add_argument("--output_file_path", required=True, type=str, help="Path to save the plot")
+    parser.add_argument("--use_serif_font", action="store_true", default=False, help="Use the Source Serif font.")
+    parser.add_argument("--fig_size", type=int, nargs=2, default=[7, 5], help="The size of the plot")
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
+
+    try:
+        # Path to the custom font
+        if args.use_serif_font:
+            font_path = "/usr/share/fonts/truetype/Source_Serif_4/static/SourceSerif4-Regular.ttf"
+        else:
+            font_path = "/usr/share/fonts/truetype/Source_Sans_3/static/SourceSans3-Regular.ttf"
+        fm.fontManager.addfont(font_path)
+        prop = fm.FontProperties(fname=font_path)
+        logger.info(f"Setting {prop.get_name()} as font family.")
+        # Set the font globally in rcParams
+        mpl.rcParams['font.family'] = prop.get_name()
+    except Exception as e:
+        logger.warning(f"Failed to set font family: {e}. Defaulting to system font.")
+
     output_file_path = args.output_file_path
     # Load English RoBERTa model and tokenizer
     model_name = "roberta-base"
@@ -144,9 +170,10 @@ def main():
     plot_embeddings(
         embeddings=embeddings,
         tokenizer=tokenizer,
-        token_ids=[6110, 31970, 2764, 920],
+        token_ids=[6110, 31970],
         diversify=False,
-        output_file_path=output_file_path
+        output_file_path=output_file_path,
+        fig_size=args.fig_size
     )
 
 

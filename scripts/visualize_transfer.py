@@ -109,7 +109,7 @@ def visualize_transfer(
         plt.ylabel("Count of target tokens")
         plt.title("Distribution of Source Token Count per Target Token")
         plt.tight_layout()
-        plt.savefig(f"{model_path}/hist_target_sources_count.png")
+        plt.savefig(f"{model_path}/hist_target_sources_count.pdf")
         if show_plot:
             plt.show()
         plt.close()
@@ -122,7 +122,7 @@ def visualize_transfer(
         plt.title("Source Token Contributions for Embedding Initialization")
         plt.grid()
         plt.tight_layout()
-        plt.savefig(f"{model_path}/hist_source_embedding_contributions.png")
+        plt.savefig(f"{model_path}/hist_source_embedding_contributions.pdf")
         if show_plot:
             plt.show()
         plt.close()
@@ -254,7 +254,7 @@ def visualize_transfer(
 
     plt.grid(axis='y', alpha=0.3)  # you can configure grid lines to show only horizontal lines, etc.
     plt.tight_layout()
-    plt.savefig(f"{input_dir}/src_token_usage.png")
+    plt.savefig(f"{input_dir}/src_token_usage.pdf")
     if show_plot:
         plt.show()
     plt.close()
@@ -317,7 +317,7 @@ def visualize_transfer(
     # plt.subplots_adjust(bottom=0.3)
     plt.grid(axis='y', alpha=0.3)  # you can configure grid lines to show only horizontal lines, etc.
     plt.tight_layout()
-    plt.savefig(f"{input_dir}/tgt_embedding_init.png")
+    plt.savefig(f"{input_dir}/tgt_embedding_init.pdf")
     if show_plot:
         plt.show()
     plt.close()

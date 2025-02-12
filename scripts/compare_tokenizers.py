@@ -1,7 +1,11 @@
 import argparse
 import logging
+import random
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib as mpl
+import matplotlib.font_manager as fm
 
 from transformers import AutoTokenizer
 from lm_transfer.embedding_initialization.overlap_utils import get_overlapping_tokens
@@ -18,6 +22,10 @@ def parse_args():
     parser.add_argument("--include_canonicalized", action="store_true", default=False, help="Include overlap of canonicalized tokens in the plot")
     parser.add_argument("--include_fuzzy", action="store_true", default=False, help="Include overlap of fuzzy matched tokens in the plot")
     parser.add_argument("--fig_size", type=int, nargs=2, default=[7, 5], help="The size of the plot")
+    parser.add_argument("--sample_size", type=int, default=100, help="The number of overlapping tokens to sample")
+    parser.add_argument("--output_dir", type=str, default=None, help="The path to save samples of overlapping tokens")
+    parser.add_argument("--seed", type=int, default=42, help="The random seed")
+    parser.add_argument("--use_serif_font", action="store_true", default=False, help="Use the Source Serif font")
     return parser.parse_args()
 
 
@@ -53,6 +61,23 @@ def get_fuzzy_overlap(target_tokenizer, source_tokenizer):
 
 def main():
     args = parse_args()
+    try:
+        # Path to the custom font
+        if args.use_serif_font:
+            font_path = "/usr/share/fonts/truetype/Source_Serif_4/static/SourceSerif4-Regular.ttf"
+        else:
+            font_path = "/usr/share/fonts/truetype/Source_Sans_3/static/SourceSans3-Regular.ttf"
+        fm.fontManager.addfont(font_path)
+        prop = fm.FontProperties(fname=font_path)
+        logger.info(f"Setting {prop.get_name()} as font family.")
+        # Set the font globally in rcParams
+        mpl.rcParams['font.family'] = prop.get_name()
+    except Exception as e:
+        logger.warning(f"Failed to set font family: {e}. Defaulting to system font.")
+
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+
     mono_src_model = "FacebookAI/roberta-base"
     mono_tgt_model = "phucdev/vi-bpe-culturax-2048"
     multi_src_model = "FacebookAI/xlm-roberta-base"
@@ -71,6 +96,15 @@ def main():
     multi_exact_overlap, multi_exact_missing = get_exact_overlap(multi_tgt_tokenizer, multi_src_tokenizer)
     overlap_counts = [len(mono_exact_overlap), len(multi_exact_overlap)]
     missing_counts = [len(mono_exact_missing), len(multi_exact_missing)]
+
+    if args.output_dir:
+        # Sample random tokens from the overlapping tokens, decode them, and write them to Excel file for manual inspection
+        for model, overlap_tokens, tokenizer in zip(models, [mono_exact_overlap, multi_exact_overlap], [mono_src_tokenizer, multi_src_tokenizer]):
+            sample_tokens = np.random.choice(list(overlap_tokens), size=args.sample_size, replace=False)
+            sample_decoded = [tokenizer.decode(tokenizer.convert_tokens_to_ids(token)) for token in sample_tokens]
+            df = pd.DataFrame({"Token": sample_tokens, "Decoded": sample_decoded, "Category": ["" for _ in range(args.sample_size)]})
+            df.to_excel(f"{args.output_dir}/{model}_exact_overlap_sample.xlsx", index=False, engine="xlsxwriter")
+            logger.info(f"Saved a sample of {args.sample_size} overlapping tokens from {model} to {args.output_dir}/{model}_exact_overlap_sample.xlsx")
 
     # Now create a bar plot to compare the number of overlapping tokens and missing tokens
     # Create a bar plot

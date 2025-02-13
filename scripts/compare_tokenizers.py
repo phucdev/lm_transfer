@@ -61,6 +61,12 @@ def get_fuzzy_overlap(target_tokenizer, source_tokenizer):
 
 def main():
     args = parse_args()
+
+    plt.rcParams['font.size'] = 10
+    plt.rcParams['axes.labelsize'] = 10
+    plt.rcParams['xtick.labelsize'] = 8
+    plt.rcParams['ytick.labelsize'] = 8
+    plt.rcParams['legend.fontsize'] = 8
     try:
         # Path to the custom font
         if args.use_serif_font:
@@ -137,9 +143,7 @@ def main():
     ax.set_ylabel("Number of Tokens")
     if args.title:
         ax.set_title(args.title)
-    else:
-        ax.set_title(f"Vocabulary Overlap Between the Target and Source Tokenizers")
-    ax.legend()
+    ax.legend(bbox_to_anchor=(0.5, 1.0), loc='lower center', ncol=2)
 
     # Now label the bars.
     # - For Overlap (bottom bars), a label_type of 'center' or 'edge' can work.
@@ -149,10 +153,9 @@ def main():
 
     plt.tight_layout()
     # plt.grid(axis="y")
-    plt.show()
-
     if args.output_path:
-        plt.savefig(args.output_path)
+        plt.savefig(args.output_path, format="pdf", bbox_inches="tight")
+    plt.show()
     plt.close()
 
 

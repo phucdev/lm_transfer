@@ -62,7 +62,7 @@ def plot_embeddings(
         diversify=False,
         top_k=5,
         dimension_reduction="umap",
-        fig_size=(10, 7)
+        fig_size=(4, 3)
 ):
     """
     Plot the embeddings of tokens and their top-k nearest neighbors in embedding space.
@@ -123,13 +123,12 @@ def plot_embeddings(
 
     for i, (word, color, is_main) in enumerate(all_words):
         plt.scatter(x[i], y[i], color=color, alpha=1.0 if is_main else 0.6, label=word if is_main else "")
-        plt.text(x[i], y[i], word, fontsize=11, color="black")
+        plt.text(x[i]-0.08, y[i]+0.04, word, fontsize=10, color="black")
 
-    plt.title("UMAP Projection of Selected Tokens in Embedding Space")
-    plt.legend(loc="best", fontsize=11, markerscale=0.7)
-    plt.grid(True)
+    # plt.title("UMAP Projection of Selected Tokens in Embedding Space")
+    plt.legend(loc="best", fontsize=10, markerscale=0.7)
     plt.tight_layout()
-    plt.savefig(output_file_path)
+    plt.savefig(output_file_path, format="pdf", bbox_inches="tight")
     plt.show()
 
 
@@ -137,12 +136,18 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Visualize embeddings in RoBERTa's vocabulary")
     parser.add_argument("--output_file_path", required=True, type=str, help="Path to save the plot")
     parser.add_argument("--use_serif_font", action="store_true", default=False, help="Use the Source Serif font.")
-    parser.add_argument("--fig_size", type=int, nargs=2, default=[7, 5], help="The size of the plot")
+    parser.add_argument("--fig_size", type=int, nargs=2, default=[4, 3], help="The size of the plot")
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
+
+    plt.rcParams['font.size'] = 10
+    plt.rcParams['axes.labelsize'] = 10
+    plt.rcParams['xtick.labelsize'] = 8
+    plt.rcParams['ytick.labelsize'] = 8
+    plt.rcParams['legend.fontsize'] = 8
 
     try:
         # Path to the custom font

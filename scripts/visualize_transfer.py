@@ -46,6 +46,7 @@ def parse_args():
     parser.add_argument("--use_serif_font", action="store_true", default=False, help="Use the Source Serif font.")
     parser.add_argument("--show_plot", action="store_true", default=False, help="Show the plot.")
     parser.add_argument("--top_k", type=int, default=10, help="Extract top k contributing source tokens.")
+    parser.add_argument("--fig_size", type=int, nargs=2, default=[6, 3], help="The size of the plot")
 
     args = parser.parse_args()
     return args
@@ -107,7 +108,7 @@ def visualize_transfer(
         plt.hist(target_sources_count, bins=50, color="blue", alpha=0.7)
         plt.xlabel("Number of source tokens used for a single target token")
         plt.ylabel("Count of target tokens")
-        plt.title("Distribution of Source Token Count per Target Token")
+        # plt.title("Distribution of Source Token Count per Target Token")
         plt.tight_layout()
         plt.savefig(f"{model_path}/hist_target_sources_count.pdf")
         if show_plot:
@@ -119,7 +120,7 @@ def visualize_transfer(
         plt.hist(src_weight_sums[src_usage_count > 0], bins=50, color="blue", alpha=0.7, log=True)
         plt.xlabel("Sum of source token weights")
         plt.ylabel("Count of source tokens (Log scale)")
-        plt.title("Source Token Contributions for Embedding Initialization")
+        # plt.title("Source Token Contributions for Embedding Initialization")
         plt.grid()
         plt.tight_layout()
         plt.savefig(f"{model_path}/hist_source_embedding_contributions.pdf")
@@ -181,6 +182,7 @@ def visualize_transfer(
     # For multilingual case only keep FOCUS and FVT as the FVT variants have the same values
     if "FVT" in method_names:
         method_names = ["FVT", "FOCUS"]
+    method_names_word_wrap = [method_name if "+" not in method_name else method_name.replace("+", "\n+") for method_name in method_names]
 
     used_only_weighted_src_tokens = np.asarray(
         [src_emb_usage[model_name]["used_only_weighted_src_tokens"] for model_name in method_names]
@@ -245,19 +247,30 @@ def visualize_transfer(
     )
 
     ax.set_ylabel("Number of Source Tokens")
-    ax.set_title("Source Token Usage", pad=40)
-    ax.set_xticks(x)
-    ax.set_xticklabels(method_names, rotation=45, ha="right")
+    # ax.set_title("Source Token Usage", pad=40)
+    ax.set_xticks(x, method_names_word_wrap, ha="center", rotation=45)
     ax.legend(bbox_to_anchor=(0.5, 1.0), loc='lower center', ncol=4)
     # Place legend below the plot, centered
     # ax.legend(bbox_to_anchor=(0.5, -0.15), loc='upper center')
 
     plt.grid(axis='y', alpha=0.3)  # you can configure grid lines to show only horizontal lines, etc.
     plt.tight_layout()
-    plt.savefig(f"{input_dir}/src_token_usage.pdf")
+    plt.savefig(f"{input_dir}/src_token_usage.pdf", format="pdf", bbox_inches="tight")
     if show_plot:
         plt.show()
     plt.close()
+
+    # Export the numbers to a table and print them out as markdown
+    with open(f"{input_dir}/src_token_usage.md", "w") as f:
+        f.write("| Model | Used (Weighted Mean) | Used (Direct Copy & Weighted Mean) | Used (Direct Copy) | Not Used |\n")
+        f.write("|-------|----------------------|------------------------------------|---------------------|----------|\n")
+        for model_name in method_names:
+            f.write(
+                f"| {model_name} | {src_emb_usage[model_name]['used_only_weighted_src_tokens']} | "
+                f"{src_emb_usage[model_name]['used_both_src_tokens']} | "
+                f"{src_emb_usage[model_name]['used_only_direct_copy_src_tokens']} | "
+                f"{src_emb_usage[model_name]['not_used_src_tokens']} |\n"
+            )
 
     # Create a bar plot for all models that shows how many target embeddings were initialized randomly, with direct copy, and with weighted mean
     randomly_init_tgt_tokens = np.asarray(
@@ -308,24 +321,39 @@ def visualize_transfer(
     )
 
     ax.set_ylabel("Number of Target Embeddings")
-    ax.set_title("Target Embedding Initialization", pad=40)
-    ax.set_xticks(x)
-    ax.set_xticklabels(method_names, rotation=45, ha="right")
+    # ax.set_title("Target Embedding Initialization", pad=40)
+    ax.set_xticks(x, method_names_word_wrap, ha="center", rotation=45)
     ax.legend(bbox_to_anchor=(0.5, 1.0), loc='lower center', ncol=3)
     # Place legend below the plot, centered
     # ax.legend(bbox_to_anchor=(0.5, 0.0), loc='upper center')
     # plt.subplots_adjust(bottom=0.3)
     plt.grid(axis='y', alpha=0.3)  # you can configure grid lines to show only horizontal lines, etc.
     plt.tight_layout()
-    plt.savefig(f"{input_dir}/tgt_embedding_init.pdf")
+    plt.savefig(f"{input_dir}/tgt_embedding_init.pdf", format="pdf", bbox_inches="tight")
     if show_plot:
         plt.show()
     plt.close()
+
+    # Export the numbers to a table and print them out as markdown
+    with open(f"{input_dir}/tgt_embedding_init.md", "w") as f:
+        f.write("| Model | Random Initialization | Direct Copy | Weighted Mean Initialization |\n")
+        f.write("|-------|-----------------------|-------------|-----------------------------|\n")
+        for model_name in method_names:
+            f.write(
+                f"| {model_name} | {src_emb_usage[model_name]['num_rand_init']} | "
+                f"{src_emb_usage[model_name]['num_direct_copy']} | "
+                f"{src_emb_usage[model_name]['num_weighted_mean']} |\n"
+            )
 
 
 def main():
     args = parse_args()
 
+    plt.rcParams['font.size'] = 10
+    plt.rcParams['axes.labelsize'] = 10
+    plt.rcParams['xtick.labelsize'] = 8
+    plt.rcParams['ytick.labelsize'] = 8
+    plt.rcParams['legend.fontsize'] = 8
     try:
         # Path to the custom font
         if args.use_serif_font:
@@ -346,7 +374,8 @@ def main():
         args.source_model_name_or_path,
         args.normalize,
         show_plot=args.show_plot,
-        top_k=args.top_k
+        top_k=args.top_k,
+        fig_size=args.fig_size
     )
 
 

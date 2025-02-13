@@ -185,7 +185,7 @@ def plot_embedding_norms(
         plt.legend()
     plt.tight_layout()
 
-    plt.savefig(f"{output_dir}/embedding_norms.pdf")
+    plt.savefig(f"{output_dir}/embedding_norms.pdf", format="pdf", bbox_inches="tight")
     if show_plot:
         plt.show()
 
@@ -267,6 +267,12 @@ def plot_multi_embedding_norms(
 
 def main():
     args = parse_args()
+
+    plt.rcParams['font.size'] = 10
+    plt.rcParams['axes.labelsize'] = 10
+    plt.rcParams['xtick.labelsize'] = 8
+    plt.rcParams['ytick.labelsize'] = 8
+    plt.rcParams['legend.fontsize'] = 8
 
     try:
         # Path to the custom font
